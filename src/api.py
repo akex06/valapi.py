@@ -1,3 +1,7 @@
+"""
+Classes and methods related to Valorant API calls
+"""
+
 import sqlite3
 
 import requests

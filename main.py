@@ -20,5 +20,6 @@ class Bot(commands.Bot):
 
 
 if __name__ == "__main__":
+    from constants import TOKEN
     bot = Bot(command_prefix="..", intents=discord.Intents.all())
-    bot.run("MTIwMzA5MzA1MzEwODEzMzkzOA.Gz4PeH.UhW_IUNpH-7vJcyYKdC3J9gr9QWAODkfV-ZfnY")
+    bot.run(TOKEN)
