@@ -7,6 +7,7 @@ from discord.ext import commands
 class Bot(commands.Bot):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.authed_users = dict()
 
     async def on_ready(self) -> None:
         print(f"[ READY ]: {self.user}")
@@ -17,6 +18,8 @@ class Bot(commands.Bot):
                 continue
 
             await self.load_extension(f"cogs.{cog[:-3]}")
+
+        await self.tree.sync()
 
 
 if __name__ == "__main__":
