@@ -63,23 +63,6 @@ class Skin:
         return name[0]
 
 
-class API:
-    accountXP = "/account-xp/v1/players/"
-    mmr = "/mmr/v1/players/"
-    store = "/store/v2/storefront/"
-    wallet = "/store/v1/wallet/"
-    owned = "/store/v1/entitlements/"
-    chat = "/pas/v1/service/chat"
-
-
-class URLS:
-    AUTH_URL = "https://auth.riotgames.com/api/v1/authorization"
-    REGION_URL = "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant"
-    VERIFIED_URL = "https://email-verification.riotgames.com/api/v1/account/status"
-    ENTITLEMENT_URL = "https://entitlements.auth.riotgames.com/api/token/v1"
-    USERINFO_URL = "https://auth.riotgames.com/userinfo"
-
-
 class LockFile:
     def __init__(self, lockfile_fp: str = None) -> None:
         if lockfile_fp is None:
@@ -90,7 +73,7 @@ class LockFile:
 
 
 class Valorant:
-    def __init__(self, username: str, password: str, auth=True) -> None:
+    def __init__(self, username: str, password: str) -> None:
         self.cache = Cache()
         self.session = requests.Session()
 
@@ -101,35 +84,21 @@ class Valorant:
             "Accept": "application/json, text/plain, */*"
         }
 
-        if auth:
-            self.username = username
-            self.password = password
+        self.username = username
+        self.password = password
 
-            self.lockfile = self.get_lockfile()
+        self.set_auth_cookies()
 
-            self.access_token, self.id_token = self.get_access_token()
-            self.entitlement_token = self.get_entitlement_token()
+        self.lockfile = self.get_lockfile()
 
-            self.region = self.get_region()
-            self.user_info = self.get_user_info()
+        self.access_token, self.id_token = self.get_access_token()
+        self.entitlement_token = self.get_entitlement_token()
 
-            self.rso_token = self.get_rso_token()
-            self.pas_token = self.get_pas_token()
+        self.region = self.get_region()
+        self.user_info = self.get_user_info()
 
-        else:
-            self.username = None
-            self.password = None
-
-            self.lockfile = None
-
-            self.access_token, self.id_token = None, None
-            self.entitlement_token = None
-
-            self.region = None
-            self.user_info = None
-
-            self.rso_token = None
-            self.pas_token = None
+        self.rso_token = self.get_rso_token()
+        self.pas_token = self.get_pas_token()
 
     def set_auth_cookies(self) -> None:
         post_data = {
@@ -147,8 +116,6 @@ class Valorant:
         return LockFile()
 
     def get_access_token(self) -> tuple | None:
-        self.set_auth_cookies()
-
         put_data = {
             "language": "en_US",
             "password": self.password,
@@ -176,7 +143,7 @@ class Valorant:
                 "Authorization": f"Bearer {self.access_token}"
             },
             json={}
-        ).json()
+        ).json()["entitlements_token"]
 
     def get_user_info(self):
         return self.session.post(
@@ -246,3 +213,13 @@ class Valorant:
         ).text
 
         return pas
+
+    def get_config(self) -> None:
+        print(self.entitlement_token)
+        print(self.session.get(
+            "https://clientconfig.rpg.riotgames.com/api/v1/config/player?app=Riot%20Client",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.rso_token}"
+            }
+        ).text)
