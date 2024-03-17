@@ -3,8 +3,8 @@ import requests
 
 
 class Cache:
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self.conn = conn
+    def __init__(self) -> None:
+        self.conn = sqlite3.connect("src/skins.sqlite3")
         self.c = self.conn.cursor()
 
         self.create_tables()

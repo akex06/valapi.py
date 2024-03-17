@@ -1,12 +1,16 @@
 """
 Classes and methods related to Valorant API calls
 """
-
+import os.path
 import sqlite3
 
 import requests
+import urllib3
+from requests.auth import HTTPBasicAuth
 
 from src import Cache
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class Skin:
@@ -16,7 +20,6 @@ class Skin:
 
         self.name = name or self.get_name()
         self.image = f"https://media.valorant-api.com/weaponskins/{self.uuid}/displayicon.png"
-
 
     def __repr__(self) -> str:
         return '%s(%s)' % (
@@ -66,6 +69,7 @@ class API:
     store = "/store/v2/storefront/"
     wallet = "/store/v1/wallet/"
     owned = "/store/v1/entitlements/"
+    chat = "/pas/v1/service/chat"
 
 
 class URLS:
@@ -76,46 +80,58 @@ class URLS:
     USERINFO_URL = "https://auth.riotgames.com/userinfo"
 
 
+class LockFile:
+    def __init__(self, lockfile_fp: str = None) -> None:
+        if lockfile_fp is None:
+            lockfile_fp = os.getenv("LOCALAPPDATA") + "\\Riot Games\\Riot Client\\Config\\lockfile"
+
+        with open(lockfile_fp, encoding="utf-8") as f:
+            self.name, self.pid, self.port, self.password, self.protocol = f.read().split(":")
+
+
 class Valorant:
     def __init__(self, username: str, password: str, auth=True) -> None:
-        self.conn = sqlite3.connect("src/skins.sqlite3")
-        self.c = self.conn.cursor()
-
-        self.cache = Cache(self.conn)
+        self.cache = Cache()
+        self.session = requests.Session()
 
         build = requests.get("https://valorant-api.com/v1/version").json()["data"]["riotClientBuild"]
-
-        self.session = requests.Session()
         self.session.headers = {
             "User-Agent": f"RiotClient/{build} riot-status (Windows;10;;Professional, x64)",
             "Accept-Language": "en-US,en;q=0.9",
             "Accept": "application/json, text/plain, */*"
         }
 
-        self.username = username
-        self.password = password
-
-        self.access_token, self.id_token = None, None
-        self.entitlement_token = None
-
-        self.region = None
-        self.user_info = None
-
         if auth:
-            self.auth()
+            self.username = username
+            self.password = password
 
-    def auth(self, mfa_code: str = None) -> None:
-        if mfa_code is None:
+            self.lockfile = self.get_lockfile()
+
             self.access_token, self.id_token = self.get_access_token()
+            self.entitlement_token = self.get_entitlement_token()
+
+            self.region = self.get_region()
+            self.user_info = self.get_user_info()
+
+            self.rso_token = self.get_rso_token()
+            self.pas_token = self.get_pas_token()
+
         else:
-            self.access_token, self.id_token = self.get_access_token_with_mfa(mfa_code)
+            self.username = None
+            self.password = None
 
-        self.entitlement_token = self.get_entitlement_token()
+            self.lockfile = None
 
-        self.region = self.get_region()
-        self.user_info = self.get_user_info()
+            self.access_token, self.id_token = None, None
+            self.entitlement_token = None
 
-    def get_access_token(self) -> tuple | None:
+            self.region = None
+            self.user_info = None
+
+            self.rso_token = None
+            self.pas_token = None
+
+    def set_auth_cookies(self) -> None:
         post_data = {
             "acr_values": "urn:riot:bronze",
             "claims": "",
@@ -125,6 +141,14 @@ class Valorant:
             "response_type": "token id_token",
             "scope": "openid link ban lol_region"
         }
+        self.session.post(url=URLS.AUTH_URL, json=post_data)
+
+    def get_lockfile(self) -> LockFile:
+        return LockFile()
+
+    def get_access_token(self) -> tuple | None:
+        self.set_auth_cookies()
+
         put_data = {
             "language": "en_US",
             "password": self.password,
@@ -132,12 +156,10 @@ class Valorant:
             "type": "auth",
             "username": self.username
         }
-
-        self.session.post(url=URLS.AUTH_URL, json=post_data)
         request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
 
         if request["type"] == "multifactor":
-            raise ValueError("Multifactor needed")
+            raise ValueError("Multifactor needed, please disable it and try again")
 
         response = dict(map(
             lambda x: x.split("="),
@@ -146,42 +168,33 @@ class Valorant:
 
         return response["access_token"], response["id_token"]
 
-    def get_access_token_with_mfa(self, mfa_code: str) -> tuple:
-        request = self.session.put(
-            url=URLS.AUTH_URL,
-            json={
-                "type": "multifactor",
-                "code": mfa_code,
-                "rememberDevice": True
-            }
-        )
-        print(request.text)
-        return 1, 1
-
     def get_entitlement_token(self):
-        self.session.headers.update({
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.access_token}"
-        })
-
-        return self.session.post(URLS.ENTITLEMENT_URL, json={}).json()["entitlements_token"]
+        return self.session.post(
+            URLS.ENTITLEMENT_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.access_token}"
+            },
+            json={}
+        ).json()
 
     def get_user_info(self):
-        self.session.headers.update({
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.access_token}"
-        })
-
-        return self.session.post(URLS.USERINFO_URL, json={}).json()
+        return self.session.post(
+            URLS.USERINFO_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.access_token}"
+            },
+            json={}
+        ).json()
 
     def get_region(self):
-        self.session.headers.update({
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.access_token}"
-        })
-
         return self.session.put(
             "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.access_token}"
+            },
             json={
                 "id_token": self.id_token
             }
@@ -216,3 +229,20 @@ class Valorant:
             skins.append(Skin.from_level_uuid(skin["OfferID"], price=price))
 
         return skins
+
+    def get_rso_token(self) -> str:
+        rso = self.session.get(
+            f"{self.lockfile.protocol}://127.0.0.1:{self.lockfile.port}/entitlements/v2/token",
+            auth=HTTPBasicAuth("riot", self.lockfile.password),
+            verify=False
+        ).json()
+        return rso["authorization"]["accessToken"]["token"]
+
+    def get_pas_token(self) -> str:
+        pas = self.session.get(
+            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
+            headers={"Authorization": f"Bearer {self.rso_token}"},
+            verify=False
+        ).text
+
+        return pas
