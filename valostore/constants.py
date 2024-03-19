@@ -9,7 +9,10 @@ class URLS:
 class API:
     CONTENT = "/content-service/v3/content"
     ACCOUNT_XP = "/account-xp/v1/players/"
+    PERSONALIZATION = "/personalization/v2/players"
     MMR = "/mmr/v1/players/"
+    HISTORY = "/match-history/v1/history"
+    MATCHES = "/match-details/v1/matches"
     STORE = "/store/v2/storefront/"
     PRICES = "/store/v1/offers"
     WALLET = "/store/v1/wallet/"

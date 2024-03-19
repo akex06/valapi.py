@@ -29,10 +29,10 @@ class Valorant:
         }
 
         self.client_platform = base64.b64encode(json.dumps({
-                "platformType": "PC",
-                "platformOS": "Windows",
-                "platformOSVersion": "10.0.19042.1.256.64bit",
-                "platformChipset": "Unknown"
+            "platformType": "PC",
+            "platformOS": "Windows",
+            "platformOSVersion": "10.0.19042.1.256.64bit",
+            "platformChipset": "Unknown"
         }).encode("utf-8"))
 
         self.username = username
@@ -80,7 +80,7 @@ class Valorant:
             "username": self.username
         }
         request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
-        print(request)
+
         if request["type"] == "multifactor":
             raise ValueError("Multifactor needed, please disable it and try again")
 
@@ -135,26 +135,89 @@ class Valorant:
         return self.session.get(
             f"{self.server}{API.CONTENT}",
             headers={
-                "X-Riot-ClientPlatform:": f"{self.client_platform}",
-                "X-Riot-ClientVersion:": f"{self.get_client_version()}",
-                "X-Riot-Entitlements-JWT:": f"{self.entitlement_token}",
-                "Authorization:": f"Bearer {self.access_token}"
+                "X-Riot-ClientPlatform": f"{self.client_platform}",
+                "X-Riot-ClientVersion": f"{self.get_client_version()}",
+                "X-Riot-Entitlements-JWT": f"{self.entitlement_token}",
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_account_xp(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.ACCOUNT_XP}/{self.user_info['sub']}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_loadout(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def set_loadout(self, loadout: dict) -> None:
+        # TODO: Make a class for loadout to make this easier
+        self.session.put(
+            f"{self.server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            },
+            json=loadout
+        )
+
+    def get_player_mmr(self, player_id: str | None = None) -> dict:
+        if player_id is None:
+            player_id = self.user_info["sub"]
+
+        return self.session.get(
+            f"{self.server}{API.MMR}/{player_id}",
+            headers={
+                "X-Riot-ClientPlatform": self.client_platform,
+                "X-Riot-ClientVersion": self.get_client_version(),
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_match_history(self, player_id: str | None = None, start: int | None = 0, end: int | None = 20):
+        # TODO: add queue parameter when ids are known
+        if player_id is None:
+            player_id = self.user_info["sub"]
+        print(f"{self.server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}")
+        return self.session.get(
+            f"{self.server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_match_details(self, match_id: str) -> None:
+        return self.session.get(
+            f"{self.server}{API.MATCHES}/{match_id}",
+            json={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
             }
         ).json()
 
     def get_store(self) -> dict:
-        client_version = self.get_client_version()
-
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "X-Riot-Entitlements-JWT": self.entitlement_token,
-            "X-Riot-ClientPlatform": self.client_platform,
-            "X-Riot-ClientVersion": client_version,
-            "Content-Type": "application/json"
-        }
-
-        store_api = f"{self.server}{API.STORE}{self.user_info['sub']}"
-        return requests.get(store_api, headers=headers).json()
+        return requests.get(
+            f"{self.server}{API.STORE}{self.user_info['sub']}",
+            headers={
+                "Authorization": f"Bearer {self.access_token}",
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "X-Riot-ClientPlatform": self.client_platform,
+                "X-Riot-ClientVersion": self.get_client_version(),
+                "Content-Type": "application/json"
+            }
+        ).json()
 
     def get_prices(self) -> dict:
         return self.session.get(
