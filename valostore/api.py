@@ -1,75 +1,19 @@
 """
 Classes and methods related to Valorant API calls
 """
-import os.path
-import sqlite3
+import base64
+import json
+import socket
+import ssl
 
 import requests
 import urllib3
-from requests.auth import HTTPBasicAuth
 
-from src import Cache
+from valostore import Cache
+from valostore.classes import Skin, LockFile
+from valostore.constants import URLS, API, xmpp_servers, xmpp_regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-class Skin:
-    def __init__(self, uuid: str, name: str = None, price: int = None):
-        self.uuid = uuid
-        self.price = price
-
-        self.name = name or self.get_name()
-        self.image = f"https://media.valorant-api.com/weaponskins/{self.uuid}/displayicon.png"
-
-    def __repr__(self) -> str:
-        return '%s(%s)' % (
-            type(self).__name__,
-            ', '.join('%s=%s' % item for item in vars(self).items())
-        )
-
-    @classmethod
-    def from_level_uuid(cls, level_uuid: str, price: int = None):
-        conn = sqlite3.connect("src/skins.sqlite3")
-        c = conn.cursor()
-
-        skin_info = c.execute(
-            """
-                SELECT
-                    skins.uuid,
-                    skins.name
-                FROM skins
-                WHERE skins.name = (
-                    SELECT
-                        skinlevels.name
-                    FROM skinlevels
-                    WHERE skinlevels.uuid = ?)
-            """,
-            (level_uuid,)
-        ).fetchone()
-        if skin_info is None:
-            raise ValueError("The provided UUID is not valid")
-
-        uuid, name = skin_info
-        return cls(uuid, name=name, price=price)
-
-    def get_name(self) -> str | None:
-        conn = sqlite3.connect("src/skins.sqlite3")
-        c = conn.cursor()
-
-        name = c.execute("SELECT name FROM skins WHERE uuid = ?", (self.uuid,)).fetchone()
-        if name is None:
-            return None
-
-        return name[0]
-
-
-class LockFile:
-    def __init__(self, lockfile_fp: str = None) -> None:
-        if lockfile_fp is None:
-            lockfile_fp = os.getenv("LOCALAPPDATA") + "\\Riot Games\\Riot Client\\Config\\lockfile"
-
-        with open(lockfile_fp, encoding="utf-8") as f:
-            self.name, self.pid, self.port, self.password, self.protocol = f.read().split(":")
 
 
 class Valorant:
@@ -84,6 +28,13 @@ class Valorant:
             "Accept": "application/json, text/plain, */*"
         }
 
+        self.client_platform = base64.b64encode(json.dumps({
+                "platformType": "PC",
+                "platformOS": "Windows",
+                "platformOSVersion": "10.0.19042.1.256.64bit",
+                "platformChipset": "Unknown"
+        }).encode("utf-8"))
+
         self.username = username
         self.password = password
 
@@ -93,12 +44,20 @@ class Valorant:
 
         self.access_token, self.id_token = self.get_access_token()
         self.entitlement_token = self.get_entitlement_token()
+        self.pas_token = self.get_pas_token()
 
         self.region = self.get_region()
+        self.server = f"https://pd.{self.region}.a.pvp.net"
         self.user_info = self.get_user_info()
 
-        self.rso_token = self.get_rso_token()
-        self.pas_token = self.get_pas_token()
+    def get_client_version(self) -> str:
+        return requests.get(
+            "https://valorant-api.com/v1/version",
+            timeout=30
+        ).json()["data"]["riotClientVersion"]
+
+    def get_lockfile(self) -> LockFile:
+        return LockFile()
 
     def set_auth_cookies(self) -> None:
         post_data = {
@@ -112,9 +71,6 @@ class Valorant:
         }
         self.session.post(url=URLS.AUTH_URL, json=post_data)
 
-    def get_lockfile(self) -> LockFile:
-        return LockFile()
-
     def get_access_token(self) -> tuple | None:
         put_data = {
             "language": "en_US",
@@ -124,7 +80,7 @@ class Valorant:
             "username": self.username
         }
         request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
-
+        print(request)
         if request["type"] == "multifactor":
             raise ValueError("Multifactor needed, please disable it and try again")
 
@@ -135,7 +91,7 @@ class Valorant:
 
         return response["access_token"], response["id_token"]
 
-    def get_entitlement_token(self):
+    def get_entitlement_token(self) -> str:
         return self.session.post(
             URLS.ENTITLEMENT_URL,
             headers={
@@ -145,7 +101,15 @@ class Valorant:
             json={}
         ).json()["entitlements_token"]
 
-    def get_user_info(self):
+    def get_pas_token(self) -> str:
+        return self.session.get(
+            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
+            headers={
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).text
+
+    def get_user_info(self) -> dict:
         return self.session.post(
             URLS.USERINFO_URL,
             headers={
@@ -155,7 +119,7 @@ class Valorant:
             json={}
         ).json()
 
-    def get_region(self):
+    def get_region(self) -> str:
         return self.session.put(
             "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant",
             headers={
@@ -167,25 +131,39 @@ class Valorant:
             }
         ).json()["affinities"]["live"]
 
-    def get_store(self):
-        server = f"https://pd.{self.region}.a.pvp.net"
-        client_version = requests.get(
-            "https://valorant-api.com/v1/version",
-            timeout=30
-        ).json()["data"]["riotClientVersion"]
-        client_platform = ("ew0KCSJwbGF0Zm9ybVR5cGUiOiAiUEMiLA0KCSJwbGF0Zm9ybU9TIjogIldpbmRvd3MiLA0KCSJwbGF0Zm9ybU9TVmV"
-                           "yc2lvbiI6ICIxMC4wLjE5MDQyLjEuMjU2LjY0Yml0IiwNCgkicGxhdGZvcm1DaGlwc2V0IjogIlVua25vd24iDQp9")
+    def get_content(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.CONTENT}",
+            headers={
+                "X-Riot-ClientPlatform:": f"{self.client_platform}",
+                "X-Riot-ClientVersion:": f"{self.get_client_version()}",
+                "X-Riot-Entitlements-JWT:": f"{self.entitlement_token}",
+                "Authorization:": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_store(self) -> dict:
+        client_version = self.get_client_version()
 
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "X-Riot-Entitlements-JWT": self.entitlement_token,
-            "X-Riot-ClientPlatform": client_platform,
+            "X-Riot-ClientPlatform": self.client_platform,
             "X-Riot-ClientVersion": client_version,
             "Content-Type": "application/json"
         }
 
-        store_api = f"{server}{API.store}{self.user_info['sub']}"
+        store_api = f"{self.server}{API.STORE}{self.user_info['sub']}"
         return requests.get(store_api, headers=headers).json()
+
+    def get_prices(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.PRICES}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
 
     def get_daily_skins(self) -> list[Skin]:
         offers = self.get_store()["SkinsPanelLayout"]["SingleItemStoreOffers"]
@@ -197,29 +175,26 @@ class Valorant:
 
         return skins
 
-    def get_rso_token(self) -> str:
-        rso = self.session.get(
-            f"{self.lockfile.protocol}://127.0.0.1:{self.lockfile.port}/entitlements/v2/token",
-            auth=HTTPBasicAuth("riot", self.lockfile.password),
-            verify=False
-        ).json()
-        return rso["authorization"]["accessToken"]["token"]
+    def get_wallet(self):
+        pass
 
-    def get_pas_token(self) -> str:
-        pas = self.session.get(
-            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
-            headers={"Authorization": f"Bearer {self.rso_token}"},
-            verify=False
-        ).text
+    def start_xmpp_server(self):
+        xmpp_region = xmpp_regions[self.region]
+        address, port = xmpp_servers[xmpp_region], 5223
 
-        return pas
+        context = ssl.create_default_context()
+        with context.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), server_hostname=address) as sock:
+            sock.connect((address, port))
+            print("connected")
+            xmlData = [
+                f'<?xml version="1.0"?><stream:stream to="{xmpp_region}.pvp.net" version="1.0" xmlns:stream="http://etherx.jabber.org/streams">',
+                f'<auth mechanism="X-Riot-RSO-PAS" xmlns="urn:ietf:params:xml:ns:xmpp-sasl"><rso_token>{self.access_token}</rso_token><pas_token>{self.pas_token}</pas_token></auth>',
+                f'<?xml version="1.0"?><stream:stream to="{xmpp_region}.pvp.net" version="1.0" xmlns:stream="http://etherx.jabber.org/streams">',
+                '<iq id="_xmpp_bind1" type="set"><bind xmlns="urn:ietf:params:xml:ns:xmpp-bind"></bind></iq>',
+                '<iq id="_xmpp_session1" type="set"><session xmlns="urn:ietf:params:xml:ns:xmpp-session"/></iq>'
+            ]
 
-    def get_config(self) -> None:
-        print(self.entitlement_token)
-        print(self.session.get(
-            "https://clientconfig.rpg.riotgames.com/api/v1/config/player?app=Riot%20Client",
-            headers={
-                "X-Riot-Entitlements-JWT": self.entitlement_token,
-                "Authorization": f"Bearer {self.rso_token}"
-            }
-        ).text)
+            for m in xmlData:
+                sock.sendall(m.encode('utf-8'))
+                response = sock.recv(4096)
+                print(response.decode('utf-8'))
