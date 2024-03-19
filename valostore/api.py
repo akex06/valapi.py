@@ -40,8 +40,6 @@ class Valorant:
 
         self.set_auth_cookies()
 
-        self.lockfile = self.get_lockfile()
-
         self.access_token, self.id_token = self.get_access_token()
         self.entitlement_token = self.get_entitlement_token()
         self.pas_token = self.get_pas_token()
@@ -185,7 +183,7 @@ class Valorant:
             }
         ).json()
 
-    def get_match_history(self, player_id: str | None = None, start: int | None = 0, end: int | None = 20):
+    def get_match_history(self, player_id: str | None = None, start: int | None = 0, end: int | None = 20) -> dict:
         # TODO: add queue parameter when ids are known
         if player_id is None:
             player_id = self.user_info["sub"]
@@ -198,10 +196,48 @@ class Valorant:
             }
         ).json()
 
-    def get_match_details(self, match_id: str) -> None:
+    def get_match_details(self, match_id: str) -> dict:
         return self.session.get(
             f"{self.server}{API.MATCHES}/{match_id}",
-            json={
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_leaderboard(self, season_id: str, start: int = 0, amount: int = 510, username: str | None = None) -> dict:
+        return self.session.get(
+            f"{self.server}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}" + f"&query={username}" if username else "",
+            headers={
+                "X-Riot-ClientVersion": self.get_client_version(),
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_penalties(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.PENALTIES}",
+            headers={
+                "X-Riot-ClientPlatform": self.client_platform,
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_config(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.CONFIG}/{self.region}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+
+    def get_prices(self) -> dict:
+        return self.session.get(
+            f"{self.server}{API.PRICES}",
+            headers={
                 "X-Riot-Entitlements-JWT": self.entitlement_token,
                 "Authorization": f"Bearer {self.access_token}"
             }
@@ -219,13 +255,23 @@ class Valorant:
             }
         ).json()
 
-    def get_prices(self) -> dict:
+    def get_wallet(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.PRICES}",
+            f"{self.server}{API.WALLET}/{self.user_info['sub']}",
             headers={
                 "X-Riot-Entitlements-JWT": self.entitlement_token,
                 "Authorization": f"Bearer {self.access_token}"
             }
+        ).json()
+
+    def get_items(self, item_type: str) -> dict:
+        return self.session.get(
+            f"{self.server}{API.OWNED}/{self.user_info['sub']}/{item_type}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.entitlement_token,
+                "Authorization": f"Bearer {self.access_token}"
+            }
+
         ).json()
 
     def get_daily_skins(self) -> list[Skin]:
@@ -237,9 +283,6 @@ class Valorant:
             skins.append(Skin.from_level_uuid(skin["OfferID"], price=price))
 
         return skins
-
-    def get_wallet(self):
-        pass
 
     def start_xmpp_server(self):
         xmpp_region = xmpp_regions[self.region]
