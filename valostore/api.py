@@ -5,7 +5,6 @@ import base64
 import json
 import socket
 import ssl
-from collections import namedtuple
 
 import requests
 import urllib3
@@ -216,7 +215,7 @@ class Valorant:
         # TODO: add queue parameter when ids are known
         if player_id is None:
             player_id = self.user_info["sub"]
-        print(f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}")
+
         return self.session.get(
             f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}",
             headers={
@@ -316,7 +315,6 @@ class Valorant:
     def get_pregame_id(self, player_id: str | None = None) -> dict:
         if player_id is None:
             player_id = self.user_info['sub']
-        print(f"{self.glz_server}{API.PREGAME_PLAYER}/{player_id}")
 
         return self.session.get(
             f"{self.glz_server}{API.PREGAME_PLAYER}/{player_id}",
@@ -326,7 +324,7 @@ class Valorant:
             }
         ).json()
 
-    def get_pregame_match(self, pregame_match_id: str | None = None) -> None:
+    def get_pregame_match(self, pregame_match_id: str | None = None) -> dict:
         if pregame_match_id is None:
             pregame_match_id = self.get_pregame_id()["MatchID"]
 
@@ -338,13 +336,104 @@ class Valorant:
             }
         ).json()
 
-    def get_pregame_loadout(self, pregame_match_id: str | None = None) -> None:
+    def get_pregame_loadout(self, pregame_match_id: str | None = None) -> dict:
         if pregame_match_id is None:
             pregame_match_id = self.get_pregame_id()["MatchID"]
 
         return self.session.get(
             f"{self.glz_server}{API.PREGAME_MATCH}/{pregame_match_id}/loadouts",
             headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def select_agent(self, agent_id: str, pregame_match_id: str | None = None) -> dict:
+        print("SELECTING AGENT")
+        if pregame_match_id is None:
+            pregame_match_id = self.get_pregame_id()
+
+        return self.session.post(
+            f"{self.glz_server}{API.MATCHES}/{pregame_match_id}/select/{agent_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def lock_agent(self, agent_id: str, pregame_match_id: str | None = None) -> dict:
+        if pregame_match_id is None:
+            pregame_match_id = self.get_pregame_id()
+
+        return self.session.post(
+            f"{self.glz_server}{API.MATCHES}/{pregame_match_id}/lock/{agent_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def quit_pregame(self, pregame_match_id: str | None = None) -> dict:
+        if pregame_match_id is None:
+            pregame_match_id = self.get_pregame_id()
+
+        return self.session.post(
+            f"{self.glz_server}{API.MATCHES}/{pregame_match_id}/quit",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def get_current_game_player(self, player_id: str | None = None) -> dict:
+        if player_id is None:
+            player_id = self.user_info["sub"]
+
+        return self.session.get(
+            f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}"
+        ).json()
+
+    def get_current_game_match(self, current_match_id: str | None = None) -> dict:
+        if current_match_id is None:
+            current_match_id = self.get_pregame_id()["MatchID"]
+
+        return self.session.get(
+            f"{self.glz_server}{API.CURRENT_GAME_MATCH}/{current_match_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def get_current_game_loadout(self, current_match_id: str | None = None) -> dict:
+        if current_match_id is None:
+            current_match_id = self.get_pregame_id()["MatchID"]
+
+        return self.session.get(
+            f"{self.glz_server}{API.CURRENT_GAME_MATCH}/{current_match_id}/loadouts",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def get_item_upgrades(self) -> dict:
+        return self.session.get(
+            f"{self.pd_server}{API.ITEM_UPGRADES}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def get_contracts(self, player_id: str | None = None) -> dict:
+        if player_id is None:
+            player_id = self.user_info["sub"]
+
+        return self.session.get(
+            f"{self.pd_server}{API.CONTRACTS}/{player_id}",
+            headers={
+                "X-Riot-ClientVersion": self.get_client_version(),
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }

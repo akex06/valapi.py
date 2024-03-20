@@ -25,6 +25,10 @@ class API:
     OWNED = "/store/v1/entitlements/"
     PREGAME_PLAYER = "/pregame/v1/players"
     PREGAME_MATCH = "/pregame/v1/matches"
+    CURRENT_GAME_PLAYER = "/core-game/v1/players"
+    CURRENT_GAME_MATCH = "/core-game/v1/matches"
+    ITEM_UPGRADES = "/contract-definitions/v3/item-upgrades"
+    CONTRACTS = "/contracts/v1/contracts"
     CHAT = "/pas/v1/service/chat"
 
 
