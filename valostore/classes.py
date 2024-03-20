@@ -54,6 +54,21 @@ class Skin:
         return name[0]
 
 
+class Region:
+    def __init__(self, region: str, shard: str) -> None:
+        self.region = region
+        self.shard = shard
+
+
+class Regions:
+    AsiaPacific = Region("ap", "ap")
+    Brasil = Region("br", "na")
+    Europe = Region("eu", "eu")
+    Korea = Region("kr", "kr")
+    LatinAmerica = Region("latam", "na")
+    NorthAmerica = Region("na", "na")
+
+
 class LockFile:
     def __init__(self, lockfile_fp: str = None) -> None:
         if lockfile_fp is None:

@@ -5,13 +5,14 @@ import base64
 import json
 import socket
 import ssl
+from collections import namedtuple
 
 import requests
 import urllib3
 
 from valostore import Cache
-from valostore.classes import Skin, LockFile
-from valostore.constants import URLS, API, xmpp_servers, xmpp_regions
+from valostore.classes import Skin, LockFile, Region
+from valostore.constants import URLS, API, xmpp_servers, xmpp_regions, regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -29,7 +30,7 @@ class Auth:
 
     def get_access_token(self) -> tuple | None:
         if self.__access_token is not None:
-            return self.__access_token, self.__id_token
+            return self.__access_token
 
         put_data = {
             "language": "en_US",
@@ -49,7 +50,7 @@ class Auth:
         ))  # weird shit, extracts anchors from url and transforms them into a dict
 
         self.__access_token, self.__id_token = response["access_token"], response["id_token"]
-        return self.__access_token, self.__id_token
+        return self.__access_token
 
     def get_id_token(self) -> str:
         if self.__id_token is not None:
@@ -109,7 +110,8 @@ class Valorant:
         self.auth = Auth(username, password, self.session)
 
         self.region = self.get_region()
-        self.server = f"https://pd.{self.region}.a.pvp.net"
+        self.pd_server = f"https://pd.{self.region.region}.a.pvp.net"
+        self.glz_server = f"https://glz-{self.region.region}-1.{self.region.shard}.a.pvp.net"
         self.user_info = self.get_user_info()
 
     def get_client_version(self) -> str:
@@ -143,21 +145,22 @@ class Valorant:
             json={}
         ).json()
 
-    def get_region(self) -> str:
-        return self.session.put(
+    def get_region(self) -> Region:
+        a = self.session.put(
             "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant",
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             },
             json={
-                "id_token": self.auth
+                "id_token": self.auth.get_id_token()
             }
-        ).json()["affinities"]["live"]
+        ).json()
+        return regions[a["affinities"]["live"]]
 
     def get_content(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.CONTENT}",
+            f"{self.pd_server}{API.CONTENT}",
             headers={
                 "X-Riot-ClientPlatform": f"{self.client_platform}",
                 "X-Riot-ClientVersion": f"{self.get_client_version()}",
@@ -168,7 +171,7 @@ class Valorant:
 
     def get_account_xp(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.ACCOUNT_XP}/{self.user_info['sub']}",
+            f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info['sub']}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -177,7 +180,7 @@ class Valorant:
 
     def get_loadout(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
+            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -187,7 +190,7 @@ class Valorant:
     def set_loadout(self, loadout: dict) -> None:
         # TODO: Make a class for loadout to make this easier
         self.session.put(
-            f"{self.server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
+            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -200,7 +203,7 @@ class Valorant:
             player_id = self.user_info["sub"]
 
         return self.session.get(
-            f"{self.server}{API.MMR}/{player_id}",
+            f"{self.pd_server}{API.MMR}/{player_id}",
             headers={
                 "X-Riot-ClientPlatform": self.client_platform,
                 "X-Riot-ClientVersion": self.get_client_version(),
@@ -213,9 +216,9 @@ class Valorant:
         # TODO: add queue parameter when ids are known
         if player_id is None:
             player_id = self.user_info["sub"]
-        print(f"{self.server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}")
+        print(f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}")
         return self.session.get(
-            f"{self.server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}",
+            f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -224,7 +227,7 @@ class Valorant:
 
     def get_match_details(self, match_id: str) -> dict:
         return self.session.get(
-            f"{self.server}{API.MATCHES}/{match_id}",
+            f"{self.pd_server}{API.MATCHES}/{match_id}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -233,7 +236,7 @@ class Valorant:
 
     def get_leaderboard(self, season_id: str, start: int = 0, amount: int = 510, username: str | None = None) -> dict:
         return self.session.get(
-            f"{self.server}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}" + f"&query={username}" if username else "",
+            f"{self.pd_server}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}" + f"&query={username}" if username else "",
             headers={
                 "X-Riot-ClientVersion": self.get_client_version(),
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
@@ -243,7 +246,7 @@ class Valorant:
 
     def get_penalties(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.PENALTIES}",
+            f"{self.pd_server}{API.PENALTIES}",
             headers={
                 "X-Riot-ClientPlatform": self.client_platform,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
@@ -253,7 +256,7 @@ class Valorant:
 
     def get_config(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.CONFIG}/{self.region}",
+            f"{self.pd_server}{API.CONFIG}/{self.region.region}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -262,7 +265,7 @@ class Valorant:
 
     def get_prices(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.PRICES}",
+            f"{self.pd_server}{API.PRICES}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -271,7 +274,7 @@ class Valorant:
 
     def get_store(self) -> dict:
         return requests.get(
-            f"{self.server}{API.STORE}{self.user_info['sub']}",
+            f"{self.pd_server}{API.STORE}{self.user_info['sub']}",
             headers={
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
@@ -283,7 +286,7 @@ class Valorant:
 
     def get_wallet(self) -> dict:
         return self.session.get(
-            f"{self.server}{API.WALLET}/{self.user_info['sub']}",
+            f"{self.pd_server}{API.WALLET}/{self.user_info['sub']}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -292,7 +295,7 @@ class Valorant:
 
     def get_items(self, item_type: str) -> dict:
         return self.session.get(
-            f"{self.server}{API.OWNED}/{self.user_info['sub']}/{item_type}",
+            f"{self.pd_server}{API.OWNED}/{self.user_info['sub']}/{item_type}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -310,23 +313,60 @@ class Valorant:
 
         return skins
 
+    def get_pregame_id(self, player_id: str | None = None) -> dict:
+        if player_id is None:
+            player_id = self.user_info['sub']
+        print(f"{self.glz_server}{API.PREGAME_PLAYER}/{player_id}")
+
+        return self.session.get(
+            f"{self.glz_server}{API.PREGAME_PLAYER}/{player_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def get_pregame_match(self, pregame_match_id: str | None = None) -> None:
+        if pregame_match_id is None:
+            pregame_match_id = self.get_pregame_id()["MatchID"]
+
+        return self.session.get(
+            f"{self.glz_server}{API.PREGAME_MATCH}/{pregame_match_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
+    def get_pregame_loadout(self, pregame_match_id: str | None = None) -> None:
+        if pregame_match_id is None:
+            pregame_match_id = self.get_pregame_id()["MatchID"]
+
+        return self.session.get(
+            f"{self.glz_server}{API.PREGAME_MATCH}/{pregame_match_id}/loadouts",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
+        ).json()
+
     def start_xmpp_server(self):
-        xmpp_region = xmpp_regions[self.region]
+        xmpp_region = xmpp_regions[self.region.region]
         address, port = xmpp_servers[xmpp_region], 5223
 
         context = ssl.create_default_context()
-        with context.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), server_hostname=address) as sock:
-            sock.connect((address, port))
+        with context.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), server_hostname=address) as s:
+            s.connect((address, port))
             print("connected")
             xmlData = [
                 f'<?xml version="1.0"?><stream:stream to="{xmpp_region}.pvp.net" version="1.0" xmlns:stream="http://etherx.jabber.org/streams">',
-                f'<auth mechanism="X-Riot-RSO-PAS" xmlns="urn:ietf:params:xml:ns:xmpp-sasl"><rso_token>{self.auth.get_access_token()}</rso_token><pas_token>{self.pas_token}</pas_token></auth>',
+                f'<auth mechanism="X-Riot-RSO-PAS" xmlns="urn:ietf:params:xml:ns:xmpp-sasl"><rso_token>{self.auth.get_access_token()}</rso_token><pas_token>{self.auth.get_pas_token()}</pas_token></auth>',
                 f'<?xml version="1.0"?><stream:stream to="{xmpp_region}.pvp.net" version="1.0" xmlns:stream="http://etherx.jabber.org/streams">',
                 '<iq id="_xmpp_bind1" type="set"><bind xmlns="urn:ietf:params:xml:ns:xmpp-bind"></bind></iq>',
                 '<iq id="_xmpp_session1" type="set"><session xmlns="urn:ietf:params:xml:ns:xmpp-session"/></iq>'
             ]
 
             for m in xmlData:
-                sock.sendall(m.encode('utf-8'))
-                response = sock.recv(4096)
+                s.sendall(m.encode('utf-8'))
+                response = s.recv(4096)
                 print(response.decode('utf-8'))

@@ -1,3 +1,6 @@
+from valostore.classes import Regions
+
+
 class URLS:
     AUTH_URL = "https://auth.riotgames.com/api/v1/authorization"
     REGION_URL = "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant"
@@ -20,8 +23,19 @@ class API:
     PRICES = "/store/v1/offers"
     WALLET = "/store/v1/wallet/"
     OWNED = "/store/v1/entitlements/"
+    PREGAME_PLAYER = "/pregame/v1/players"
+    PREGAME_MATCH = "/pregame/v1/matches"
     CHAT = "/pas/v1/service/chat"
 
+
+regions = {
+    "ap": Regions.AsiaPacific,
+    "br": Regions.Brasil,
+    "eu": Regions.Europe,
+    "kr": Regions.Korea,
+    "latam": Regions.LatinAmerica,
+    "na": Regions.NorthAmerica
+}
 
 xmpp_regions = {
     "as2": "as2",
