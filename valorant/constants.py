@@ -1,4 +1,4 @@
-from valostore.classes import Regions
+from valorant.classes import Regions
 
 
 class URLS:
@@ -12,17 +12,17 @@ class URLS:
 class API:
     PENALTIES = "/restrictions/v3/penalties"
     CONTENT = "/content-service/v3/content"
-    ACCOUNT_XP = "/account-xp/v1/players/"
+    ACCOUNT_XP = "/account-xp/v1/players"
     PERSONALIZATION = "/personalization/v2/players"
-    MMR = "/mmr/v1/players/"
+    MMR = "/mmr/v1/players"
     LEADERBOARD = "/mmr/v1/leaderboards/affinity/na/queue/competitive/season"
     HISTORY = "/match-history/v1/history"
     MATCHES = "/match-details/v1/matches"
     CONFIG = "/v1/config"
-    STORE = "/store/v2/storefront/"
+    STORE = "/store/v2/storefront"
     PRICES = "/store/v1/offers"
-    WALLET = "/store/v1/wallet/"
-    OWNED = "/store/v1/entitlements/"
+    WALLET = "/store/v1/wallet"
+    OWNED = "/store/v1/entitlements"
     PREGAME_PLAYER = "/pregame/v1/players"
     PREGAME_MATCH = "/pregame/v1/matches"
     CURRENT_GAME_PLAYER = "/core-game/v1/players"

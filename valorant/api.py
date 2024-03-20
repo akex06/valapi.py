@@ -9,9 +9,9 @@ import ssl
 import requests
 import urllib3
 
-from valostore import Cache
-from valostore.classes import Skin, LockFile, Region
-from valostore.constants import URLS, API, xmpp_servers, xmpp_regions, regions
+from valorant import Cache
+from valorant.classes import Skin, LockFile, Region
+from valorant.constants import URLS, API, xmpp_servers, xmpp_regions, regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -273,7 +273,7 @@ class Valorant:
 
     def get_store(self) -> dict:
         return requests.get(
-            f"{self.pd_server}{API.STORE}{self.user_info['sub']}",
+            f"{self.pd_server}{API.STORE}/{self.user_info['sub']}",
             headers={
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),

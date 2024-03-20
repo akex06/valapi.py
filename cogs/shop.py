@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from valostore import Valorant
+from valorant import Valorant
 
 
 class Shop(commands.Cog):

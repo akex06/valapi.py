@@ -3,6 +3,8 @@
 import os
 import sqlite3
 
+import requests
+
 
 class Skin:
     def __init__(self, uuid: str, name: str = None, price: int = None):
@@ -20,7 +22,7 @@ class Skin:
 
     @classmethod
     def from_level_uuid(cls, level_uuid: str, price: int = None):
-        conn = sqlite3.connect("valostore/skins.sqlite3")
+        conn = sqlite3.connect("valorant/skins.sqlite3")
         c = conn.cursor()
 
         skin_info = c.execute(
@@ -44,7 +46,7 @@ class Skin:
         return cls(uuid, name=name, price=price)
 
     def get_name(self) -> str | None:
-        conn = sqlite3.connect("valostore/skins.sqlite3")
+        conn = sqlite3.connect("valorant/skins.sqlite3")
         c = conn.cursor()
 
         name = c.execute("SELECT name FROM skins WHERE uuid = ?", (self.uuid,)).fetchone()
@@ -78,50 +80,85 @@ class LockFile:
             self.name, self.pid, self.port, self.password, self.protocol = f.read().split(":")
 
 
-class Player:
+class Role:
     def __init__(
             self,
-            game_name: str,
-            game_tag: str,
+            _id: str,
             name: str,
-            note: str,
-            pid: str,
-            puuid: str,
-            region: str
-    ) -> None:
-        self.game_name = game_name
-        self.game_tag = game_tag
+            description: str,
+            display_icon: str
+    ):
+        self.id = _id
         self.name = name
-        self.note = note
-        self.pid = pid
-        self.id = puuid
-        self.region = region
+        self.description = description
+        self.display_icon = display_icon
 
 
-class Friend(Player):
+class Ability:
     def __init__(
             self,
-            active_platform: str | None,
-            display_group: str,
-            game_name: str,
-            game_tag: str,
-            group: str,
-            last_online_ts: str | None,
             name: str,
-            note: str,
-            pid: str,
-            puuid: str,
-            region: str
-    ) -> None:
-        super().__init__(game_name, game_tag, name, note, pid, puuid, region)
-        self.active_platform = active_platform
-        self.display_group = display_group
-        self.game_name = game_name
-        self.game_tag = game_tag
-        self.group = group
-        self.last_online_ts = last_online_ts
+            slot: int,
+            description: str,
+            display_icon: str
+    ):
         self.name = name
-        self.note = note
-        self.pid = pid
-        self.puuid = puuid
-        self.region = region
+        self.slot = slot
+        self.description = description
+        self.display_icon = display_icon
+
+
+class Agent:
+    def __init__(
+            self,
+            _id: str,
+            name: str,
+            description: str,
+            developer_name: str,
+            tags: list[str],
+            display_icon: str,
+            portrait: str,
+            kill_portrait: str,
+            background: str,
+            colors: list[str],
+            role: Role,
+            abilities: list[Ability]
+    ):
+        self.id = _id
+        self.name = name
+        self.description = description
+        self.developer_name = developer_name
+        self.tags = tags
+        self.display_icon = display_icon
+        self.portrait = portrait
+        self.kill_portrait = kill_portrait
+        self.background = background
+        self.colors = colors
+        self.role = role
+        self.abilities = abilities
+
+    @classmethod
+    def from_api(cls, data: dict):
+        mapping = {
+            "uuid": "id",
+            "displayName": "name",
+            "description": "description",
+            "developerName": "developer_name",
+            "characterTags": "tags",
+            "displayIcon": "display_icon",
+            "bustPortrait": "portrait",
+            "killfeedPortrait": "kill_portrait",
+            "background": "background",
+            "backgroundGradientColors": "colors",
+            "role": "role",
+            "abilities": "abilities",
+        }
+        args = dict()
+        for k, v in data.items():
+            arg_name = mapping.get(k)
+            if arg_name is None:
+                continue
+
+            args[arg_name] = v
+
+        print(args)

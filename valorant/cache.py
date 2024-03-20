@@ -4,7 +4,7 @@ import requests
 
 class Cache:
     def __init__(self) -> None:
-        self.conn = sqlite3.connect("valostore/skins.sqlite3")
+        self.conn = sqlite3.connect("valorant/skins.sqlite3")
         self.c = self.conn.cursor()
 
         self.create_tables()
