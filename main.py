@@ -1,7 +1,4 @@
-import requests
+from valorant import Valorant
 
-
-agents = requests.get("https://valorant-api.com/v1/agents").json()["data"]
-for agent in agents:
-    print(agent)
-    break
+val = Valorant("pitosexo69", "#Test12345")
+print(val.select_agent("asd"))

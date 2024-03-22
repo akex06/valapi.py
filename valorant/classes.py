@@ -2,8 +2,19 @@
 
 import os
 import sqlite3
+from typing import Any
 
-import requests
+
+def api_to_parameters(mapping: dict[str, str], data: dict[str, Any]) -> dict[str, str]:
+    args = dict()
+    for k, v in data.items():
+        arg_name = mapping.get(k)
+        if arg_name is None:
+            continue
+
+        args[arg_name] = v
+
+    return args
 
 
 class Skin:
@@ -80,6 +91,28 @@ class LockFile:
             self.name, self.pid, self.port, self.password, self.protocol = f.read().split(":")
 
 
+class Gun:
+    def __init__(
+            self,
+            _id: str,
+            charm_instance_id: str | None,
+            charm_id: str | None,
+            charm_level_id: str | None,
+            skin_id: str,
+            skin_level_id: str,
+            chroma_id: str,
+            attachments: list[str]
+    ) -> None:
+        self._id = _id
+        self.charm_instance_id = charm_instance_id
+        self.charm_id = charm_id
+        self.charm_level_id = charm_level_id
+        self.skin_id = skin_id
+        self.skin_level_id = skin_level_id
+        self.chroma_id = chroma_id
+        self.attachments = attachments
+
+
 class Role:
     def __init__(
             self,
@@ -140,7 +173,7 @@ class Agent:
     @classmethod
     def from_api(cls, data: dict):
         mapping = {
-            "uuid": "id",
+            "uuid": "_id",
             "displayName": "name",
             "description": "description",
             "developerName": "developer_name",
@@ -153,12 +186,5 @@ class Agent:
             "role": "role",
             "abilities": "abilities",
         }
-        args = dict()
-        for k, v in data.items():
-            arg_name = mapping.get(k)
-            if arg_name is None:
-                continue
 
-            args[arg_name] = v
-
-        print(args)
+        return cls(**api_to_parameters(mapping, data))

@@ -10,6 +10,7 @@ class URLS:
 
 
 class API:
+    PARTY = "/parties/v1"
     PENALTIES = "/restrictions/v3/penalties"
     CONTENT = "/content-service/v3/content"
     ACCOUNT_XP = "/account-xp/v1/players"

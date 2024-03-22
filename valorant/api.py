@@ -3,15 +3,13 @@ Classes and methods related to Valorant API calls
 """
 import base64
 import json
-import socket
-import ssl
 
 import requests
 import urllib3
 
 from valorant import Cache
-from valorant.classes import Skin, LockFile, Region
-from valorant.constants import URLS, API, xmpp_servers, xmpp_regions, regions
+from valorant.classes import Skin, Region
+from valorant.constants import URLS, API, regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -114,13 +112,14 @@ class Valorant:
         self.user_info = self.get_user_info()
 
     def get_client_version(self) -> str:
+        """
+        Get the latest client version
+        :return: str
+        """
         return requests.get(
             "https://valorant-api.com/v1/version",
             timeout=30
         ).json()["data"]["riotClientVersion"]
-
-    def get_lockfile(self) -> LockFile:
-        return LockFile()
 
     def set_auth_cookies(self) -> None:
         post_data = {
@@ -438,24 +437,3 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }
         ).json()
-
-    def start_xmpp_server(self):
-        xmpp_region = xmpp_regions[self.region.region]
-        address, port = xmpp_servers[xmpp_region], 5223
-
-        context = ssl.create_default_context()
-        with context.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), server_hostname=address) as s:
-            s.connect((address, port))
-            print("connected")
-            xmlData = [
-                f'<?xml version="1.0"?><stream:stream to="{xmpp_region}.pvp.net" version="1.0" xmlns:stream="http://etherx.jabber.org/streams">',
-                f'<auth mechanism="X-Riot-RSO-PAS" xmlns="urn:ietf:params:xml:ns:xmpp-sasl"><rso_token>{self.auth.get_access_token()}</rso_token><pas_token>{self.auth.get_pas_token()}</pas_token></auth>',
-                f'<?xml version="1.0"?><stream:stream to="{xmpp_region}.pvp.net" version="1.0" xmlns:stream="http://etherx.jabber.org/streams">',
-                '<iq id="_xmpp_bind1" type="set"><bind xmlns="urn:ietf:params:xml:ns:xmpp-bind"></bind></iq>',
-                '<iq id="_xmpp_session1" type="set"><session xmlns="urn:ietf:params:xml:ns:xmpp-session"/></iq>'
-            ]
-
-            for m in xmlData:
-                s.sendall(m.encode('utf-8'))
-                response = s.recv(4096)
-                print(response.decode('utf-8'))
