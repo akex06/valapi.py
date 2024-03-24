@@ -1,20 +1,10 @@
 # TODO: change shitname
-
+import abc
 import os
 import sqlite3
 from typing import Any
 
-
-def api_to_parameters(mapping: dict[str, str], data: dict[str, Any]) -> dict[str, str]:
-    args = dict()
-    for k, v in data.items():
-        arg_name = mapping.get(k)
-        if arg_name is None:
-            continue
-
-        args[arg_name] = v
-
-    return args
+import requests
 
 
 class Skin:
@@ -91,6 +81,49 @@ class LockFile:
             self.name, self.pid, self.port, self.password, self.protocol = f.read().split(":")
 
 
+class APIConverter(abc.ABC):
+    @abc.abstractmethod
+    def __init__(self, **kwargs) -> None:
+        raise NotImplementedError("__init__ must be defined on subclass")
+
+    @property
+    @abc.abstractmethod
+    def mapping(self) -> dict[str, str | tuple[str, Any]]:
+        pass
+
+    @classmethod
+    def from_api_output(cls, data: dict):
+        """
+        Returns the class based on the mapping specified at the subclass
+
+        :param data: The API output
+        :return: An instance of the subclass
+        """
+
+        params = dict()
+        for k, v in data.items():
+            param = cls.mapping.get(k)
+            if param is None:
+                continue
+
+            if isinstance(param, str): # Assign parameter if there's no type passed
+                params[param] = v
+            else:  #
+                param, _type = param
+                if _type.__base__ == APIConverter:  # Filter the type passed
+                    if (
+                            isinstance(v, (list, tuple, set))
+                            and not isinstance(v, str)
+                    ):  # If it's a collection, convert all elements individually
+                        params[param] = [_type.from_api_output(x) for x in v]
+                    else:
+                        params[param] = _type.from_api_output(v)
+                else:
+                    raise ValueError(f"Type {_type} is not a subclass of APIConverter")
+
+        return cls(**params)
+
+
 class Gun:
     def __init__(
             self,
@@ -113,7 +146,14 @@ class Gun:
         self.attachments = attachments
 
 
-class Role:
+class Role(APIConverter):
+    mapping = {
+        "uuid": "_id",
+        "displayName": "name",
+        "description": "description",
+        "displayIcon": "display_icon"
+    }
+
     def __init__(
             self,
             _id: str,
@@ -127,7 +167,14 @@ class Role:
         self.display_icon = display_icon
 
 
-class Ability:
+class Ability(APIConverter):
+    mapping = {
+        "slot": "slot",
+        "displayName": "name",
+        "description": "description",
+        "displayIcon": "display_icon"
+    }
+
     def __init__(
             self,
             name: str,
@@ -141,14 +188,29 @@ class Ability:
         self.display_icon = display_icon
 
 
-class Agent:
+class Agent(APIConverter):
+    mapping = {
+        "uuid": "_id",
+        "displayName": "name",
+        "description": "description",
+        "developerName": "developer_name",
+        "characterTags": "tags",
+        "displayIcon": "display_icon",
+        "fullPortrait": "portrait",
+        "killfeedPortrait": "kill_portrait",
+        "background": "background",
+        "backgroundGradientColors": "colors",
+        "role": ("role", Role),
+        "abilities": ("abilities", Ability)
+    }
+
     def __init__(
             self,
             _id: str,
             name: str,
             description: str,
             developer_name: str,
-            tags: list[str],
+            tags: list[str] | None,
             display_icon: str,
             portrait: str,
             kill_portrait: str,
@@ -171,20 +233,5 @@ class Agent:
         self.abilities = abilities
 
     @classmethod
-    def from_api(cls, data: dict):
-        mapping = {
-            "uuid": "_id",
-            "displayName": "name",
-            "description": "description",
-            "developerName": "developer_name",
-            "characterTags": "tags",
-            "displayIcon": "display_icon",
-            "bustPortrait": "portrait",
-            "killfeedPortrait": "kill_portrait",
-            "background": "background",
-            "backgroundGradientColors": "colors",
-            "role": "role",
-            "abilities": "abilities",
-        }
-
-        return cls(**api_to_parameters(mapping, data))
+    def from_uuid(cls, uuid: str):
+        return cls.from_api_output(requests.get(f"https://valorant-api.com/v1/agents/{uuid}").json())

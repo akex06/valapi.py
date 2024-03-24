@@ -3,6 +3,7 @@ Classes and methods related to Valorant API calls
 """
 import base64
 import json
+import socket
 
 import requests
 import urllib3
@@ -10,6 +11,7 @@ import urllib3
 from valorant import Cache
 from valorant.classes import Skin, Region
 from valorant.constants import URLS, API, regions
+from valorant.xmpp import XMPP
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -25,7 +27,7 @@ class Auth:
         self.__entitlement_token = None
         self.__pas_token = None
 
-    def get_access_token(self) -> tuple | None:
+    def get_access_token(self) -> str:
         if self.__access_token is not None:
             return self.__access_token
 
@@ -85,23 +87,17 @@ class Auth:
 
 
 class Valorant:
-    def __init__(self, username: str, password: str) -> None:
+    def __init__(self, username: str, password: str, with_xmpp: bool = False) -> None:
         self.cache = Cache()
         self.session = requests.Session()
 
         build = requests.get("https://valorant-api.com/v1/version").json()["data"]["riotClientBuild"]
-        self.session.headers = {
-            "User-Agent": f"RiotClient/{build} riot-status (Windows;10;;Professional, x64)",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "application/json, text/plain, */*"
-        }
+        self.session.headers.update({
+                "User-Agent": f"RiotClient/{build} riot-status (Windows;10;;Professional, x64)",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "application/json, text/plain, */*"
+            })
 
-        self.client_platform = base64.b64encode(json.dumps({
-            "platformType": "PC",
-            "platformOS": "Windows",
-            "platformOSVersion": "10.0.19042.1.256.64bit",
-            "platformChipset": "Unknown"
-        }).encode("utf-8"))
         self.set_auth_cookies()
 
         self.auth = Auth(username, password, self.session)
@@ -111,7 +107,23 @@ class Valorant:
         self.glz_server = f"https://glz-{self.region.region}-1.{self.region.shard}.a.pvp.net"
         self.user_info = self.get_user_info()
 
-    def get_client_version(self) -> str:
+        self.xmpp = XMPP(self.auth.get_access_token(), self.auth.get_pas_token()) if with_xmpp else None
+
+    @property
+    def agents(self):
+        return
+
+    @property
+    def client_platform(self) -> bytes:
+        return base64.b64encode(json.dumps({
+            "platformType": "PC",
+            "platformOS": "Windows",
+            "platformOSVersion": "10.0.19042.1.256.64bit",
+            "platformChipset": "Unknown"
+        }).encode("utf-8"))
+
+    @property
+    def client_version(self) -> str:
         """
         Get the latest client version
         :return: str
@@ -122,16 +134,18 @@ class Valorant:
         ).json()["data"]["riotClientVersion"]
 
     def set_auth_cookies(self) -> None:
-        post_data = {
-            "acr_values": "urn:riot:bronze",
-            "claims": "",
-            "client_id": "riot-client",
-            "nonce": "oYnVwCSrlS5IHKh7iI16oQ",
-            "redirect_uri": "http://localhost/redirect",
-            "response_type": "token id_token",
-            "scope": "openid link ban lol_region"
-        }
-        self.session.post(url=URLS.AUTH_URL, json=post_data)
+        self.session.post(
+            url=URLS.AUTH_URL,
+            json={
+                "acr_values": "urn:riot:bronze",
+                "claims": "",
+                "client_id": "riot-client",
+                "nonce": "oYnVwCSrlS5IHKh7iI16oQ",
+                "redirect_uri": "http://localhost/redirect",
+                "response_type": "token id_token",
+                "scope": "openid link ban lol_region"
+            }
+        )
 
     def get_user_info(self) -> dict:
         return self.session.post(
@@ -161,7 +175,7 @@ class Valorant:
             f"{self.pd_server}{API.CONTENT}",
             headers={
                 "X-Riot-ClientPlatform": f"{self.client_platform}",
-                "X-Riot-ClientVersion": f"{self.get_client_version()}",
+                "X-Riot-ClientVersion": f"{self.client_version}",
                 "X-Riot-Entitlements-JWT": f"{self.auth.get_entitlement_token()}",
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }
@@ -204,7 +218,7 @@ class Valorant:
             f"{self.pd_server}{API.MMR}/{player_id}",
             headers={
                 "X-Riot-ClientPlatform": self.client_platform,
-                "X-Riot-ClientVersion": self.get_client_version(),
+                "X-Riot-ClientVersion": self.client_version,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }
@@ -236,7 +250,7 @@ class Valorant:
         return self.session.get(
             f"{self.pd_server}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}" + f"&query={username}" if username else "",
             headers={
-                "X-Riot-ClientVersion": self.get_client_version(),
+                "X-Riot-ClientVersion": self.client_version,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }
@@ -277,7 +291,7 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "X-Riot-ClientPlatform": self.client_platform,
-                "X-Riot-ClientVersion": self.get_client_version(),
+                "X-Riot-ClientVersion": self.client_version,
                 "Content-Type": "application/json"
             }
         ).json()
@@ -432,8 +446,11 @@ class Valorant:
         return self.session.get(
             f"{self.pd_server}{API.CONTRACTS}/{player_id}",
             headers={
-                "X-Riot-ClientVersion": self.get_client_version(),
+                "X-Riot-ClientVersion": self.client_version,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }
         ).json()
+
+    def get_xmpp_socket(self) -> socket.socket:
+        pass
