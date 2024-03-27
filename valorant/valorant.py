@@ -8,110 +8,30 @@ import socket
 import requests
 import urllib3
 
-from valorant import Cache
-from valorant.classes import Skin, Region
-from valorant.constants import URLS, API, regions
-from valorant.xmpp import XMPP
+from valorant.classes import Auth
+from valorant.constants import URLS, API, Region, regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-class Auth:
-    def __init__(self, username: str, password: str, session: requests.Session) -> None:
-        self.username = username
-        self.password = password
-        self.session = session
-
-        self.__access_token = None
-        self.__id_token = None
-        self.__entitlement_token = None
-        self.__pas_token = None
-
-    def get_access_token(self) -> str:
-        if self.__access_token is not None:
-            return self.__access_token
-
-        put_data = {
-            "language": "en_US",
-            "password": self.password,
-            "remember": "true",
-            "type": "auth",
-            "username": self.username
-        }
-        request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
-
-        if request["type"] == "multifactor":
-            raise ValueError("Multifactor needed, please disable it and try again")
-
-        response = dict(map(
-            lambda x: x.split("="),
-            request["response"]["parameters"]["uri"].split("#")[1].split("&")
-        ))  # weird shit, extracts anchors from url and transforms them into a dict
-
-        self.__access_token, self.__id_token = response["access_token"], response["id_token"]
-        return self.__access_token
-
-    def get_id_token(self) -> str:
-        if self.__id_token is not None:
-            return self.__id_token
-
-        self.__access_token, self.__id_token = self.get_access_token()
-        return self.__id_token
-
-    def get_entitlement_token(self) -> str:
-        if self.__entitlement_token is not None:
-            return self.__entitlement_token
-
-        self.__entitlement_token = self.session.post(
-            URLS.ENTITLEMENT_URL,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.get_access_token()}"
-            },
-            json={}
-        ).json()["entitlements_token"]
-
-        return self.__entitlement_token
-
-    def get_pas_token(self) -> str:
-        if self.__pas_token is not None:
-            return self.__pas_token
-
-        self.__pas_token = self.session.get(
-            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
-            headers={
-                "Authorization": f"Bearer {self.get_access_token()}"
-            }
-        ).text
-        return self.__pas_token
-
-
 class Valorant:
-    def __init__(self, username: str, password: str, with_xmpp: bool = False) -> None:
-        self.cache = Cache()
+    def __init__(self, username: str, password: str) -> None:
         self.session = requests.Session()
+        self.auth = Auth(self.session, username, password)
 
         build = requests.get("https://valorant-api.com/v1/version").json()["data"]["riotClientBuild"]
         self.session.headers.update({
-                "User-Agent": f"RiotClient/{build} riot-status (Windows;10;;Professional, x64)",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept": "application/json, text/plain, */*"
-            })
+            "User-Agent": f"RiotClient/{build} riot-status (Windows;10;;Professional, x64)",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "application/json, text/plain, */*"
+        })
 
-        self.set_auth_cookies()
-
-        self.auth = Auth(username, password, self.session)
+        self.auth.set_auth_cookies()
 
         self.region = self.get_region()
         self.pd_server = f"https://pd.{self.region.region}.a.pvp.net"
         self.glz_server = f"https://glz-{self.region.region}-1.{self.region.shard}.a.pvp.net"
         self.user_info = self.get_user_info()
-
-        self.xmpp = XMPP(self.auth.get_access_token(), self.auth.get_pas_token()) if with_xmpp else None
-
-    @property
-    def agents(self):
-        return
 
     @property
     def client_platform(self) -> bytes:
@@ -133,20 +53,6 @@ class Valorant:
             timeout=30
         ).json()["data"]["riotClientVersion"]
 
-    def set_auth_cookies(self) -> None:
-        self.session.post(
-            url=URLS.AUTH_URL,
-            json={
-                "acr_values": "urn:riot:bronze",
-                "claims": "",
-                "client_id": "riot-client",
-                "nonce": "oYnVwCSrlS5IHKh7iI16oQ",
-                "redirect_uri": "http://localhost/redirect",
-                "response_type": "token id_token",
-                "scope": "openid link ban lol_region"
-            }
-        )
-
     def get_user_info(self) -> dict:
         return self.session.post(
             URLS.USERINFO_URL,
@@ -156,6 +62,18 @@ class Valorant:
             },
             json={}
         ).json()
+
+    def get_border_level(self, player_id: str | None = None) -> dict:
+        if player_id is None:
+            player_id = self.user_info["sub"]
+
+        last_match_id = self.get_match_history(player_id, amount=1)["History"][0]["MatchID"]
+
+        players = self.get_match_details(last_match_id)["players"]
+        player = list(filter(lambda player_data: player_data["subject"] == player_id, players))[0]
+
+        preferred_border = player.get("preferredLevelBorder", "ebc736cd-4b6a-137b-e2b0-1486e31312c9")
+        return requests.get(f"https://valorant-api.com/v1/levelborders/{preferred_border}").json()["data"]
 
     def get_region(self) -> Region:
         a = self.session.put(
@@ -224,13 +142,13 @@ class Valorant:
             }
         ).json()
 
-    def get_match_history(self, player_id: str | None = None, start: int | None = 0, end: int | None = 20) -> dict:
+    def get_match_history(self, player_id: str | None = None, offset: int | None = 0, amount: int | None = 20) -> dict:
         # TODO: add queue parameter when ids are known
         if player_id is None:
             player_id = self.user_info["sub"]
 
         return self.session.get(
-            f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={start}&endIndex={end}",
+            f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={offset}&endIndex={amount}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -315,16 +233,6 @@ class Valorant:
 
         ).json()
 
-    def get_daily_skins(self) -> list[Skin]:
-        offers = self.get_store()["SkinsPanelLayout"]["SingleItemStoreOffers"]
-
-        skins: list[Skin] = list()
-        for skin in offers:
-            price = skin["Cost"]["85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741"]
-            skins.append(Skin.from_level_uuid(skin["OfferID"], price=price))
-
-        return skins
-
     def get_pregame_id(self, player_id: str | None = None) -> dict:
         if player_id is None:
             player_id = self.user_info['sub']
@@ -362,7 +270,6 @@ class Valorant:
         ).json()
 
     def select_agent(self, agent_id: str, pregame_match_id: str | None = None) -> dict:
-        print("SELECTING AGENT")
         if pregame_match_id is None:
             pregame_match_id = self.get_pregame_id()
 
@@ -402,8 +309,13 @@ class Valorant:
         if player_id is None:
             player_id = self.user_info["sub"]
 
+        print(f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}")
         return self.session.get(
-            f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}"
+            f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}"
+            }
         ).json()
 
     def get_current_game_match(self, current_match_id: str | None = None) -> dict:

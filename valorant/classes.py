@@ -1,75 +1,96 @@
 # TODO: change shitname
 import abc
 import os
-import sqlite3
-from typing import Any
+from typing import Self
 
 import requests
 
+from valorant.constants import URLS
 
-class Skin:
-    def __init__(self, uuid: str, name: str = None, price: int = None):
-        self.uuid = uuid
-        self.price = price
 
-        self.name = name or self.get_name()
-        self.image = f"https://media.valorant-api.com/weaponskins/{self.uuid}/displayicon.png"
+class Auth:
+    def __init__(self, session: requests.Session, username: str, password: str) -> None:
+        self.session = session
 
-    def __repr__(self) -> str:
-        return '%s(%s)' % (
-            type(self).__name__,
-            ', '.join('%s=%s' % item for item in vars(self).items())
+        self.username = username
+        self.password = password
+
+        self.__access_token = None
+        self.__id_token = None
+        self.__entitlement_token = None
+        self.__pas_token = None
+
+    def set_auth_cookies(self) -> None:
+        self.session.post(
+            url=URLS.AUTH_URL,
+            json={
+                "acr_values": "urn:riot:bronze",
+                "claims": "",
+                "client_id": "riot-client",
+                "nonce": "oYnVwCSrlS5IHKh7iI16oQ",
+                "redirect_uri": "http://localhost/redirect",
+                "response_type": "token id_token",
+                "scope": "openid link ban lol_region"
+            }
         )
 
-    @classmethod
-    def from_level_uuid(cls, level_uuid: str, price: int = None):
-        conn = sqlite3.connect("valorant/skins.sqlite3")
-        c = conn.cursor()
+    def get_access_token(self) -> str:
+        if self.__access_token is not None:
+            return self.__access_token
 
-        skin_info = c.execute(
-            """
-                SELECT
-                    skins.uuid,
-                    skins.name
-                FROM skins
-                WHERE skins.name = (
-                    SELECT
-                        skinlevels.name
-                    FROM skinlevels
-                    WHERE skinlevels.uuid = ?)
-            """,
-            (level_uuid,)
-        ).fetchone()
-        if skin_info is None:
-            raise ValueError("The provided UUID is not valid")
+        put_data = {
+            "language": "en_US",
+            "password": self.password,
+            "remember": "true",
+            "type": "auth",
+            "username": self.username
+        }
+        request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
 
-        uuid, name = skin_info
-        return cls(uuid, name=name, price=price)
+        if request["type"] == "multifactor":
+            raise ValueError("Multifactor needed, please disable it and try again")
 
-    def get_name(self) -> str | None:
-        conn = sqlite3.connect("valorant/skins.sqlite3")
-        c = conn.cursor()
+        tokens = dict(map(
+            lambda x: x.split("="),
+            request["response"]["parameters"]["uri"].split("#")[1].split("&")
+        ))  # weird shit, extracts anchors from url and transforms them into a dict
 
-        name = c.execute("SELECT name FROM skins WHERE uuid = ?", (self.uuid,)).fetchone()
-        if name is None:
-            return None
+        self.__access_token, self.__id_token = tokens["access_token"], tokens["id_token"]
+        return self.__access_token
 
-        return name[0]
+    def get_id_token(self) -> str:
+        if self.__id_token is not None:
+            return self.__id_token
 
+        self.__access_token, self.__id_token = self.get_access_token()
+        return self.__id_token
 
-class Region:
-    def __init__(self, region: str, shard: str) -> None:
-        self.region = region
-        self.shard = shard
+    def get_entitlement_token(self) -> str:
+        if self.__entitlement_token is not None:
+            return self.__entitlement_token
 
+        self.__entitlement_token = self.session.post(
+            URLS.ENTITLEMENT_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.get_access_token()}"
+            },
+            json={}
+        ).json()["entitlements_token"]
 
-class Regions:
-    AsiaPacific = Region("ap", "ap")
-    Brasil = Region("br", "na")
-    Europe = Region("eu", "eu")
-    Korea = Region("kr", "kr")
-    LatinAmerica = Region("latam", "na")
-    NorthAmerica = Region("na", "na")
+        return self.__entitlement_token
+
+    def get_pas_token(self) -> str:
+        if self.__pas_token is not None:
+            return self.__pas_token
+
+        self.__pas_token = self.session.get(
+            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
+            headers={
+                "Authorization": f"Bearer {self.get_access_token()}"
+            }
+        ).text
+        return self.__pas_token
 
 
 class LockFile:
@@ -88,7 +109,16 @@ class APIConverter(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def mapping(self) -> dict[str, str | tuple[str, Any]]:
+    def mapping(self) -> dict[str, str | tuple[str, Self]]:
+        """
+        A mapping of the names of the parameters.
+
+        Consists of a str denoting the API parameter name output and a union of str and tuple[str, Self].
+        If the map value is a str, the converter will just pass the value, if it's an instance of APIConverter or
+        a list of APIConverter it will convert them individually using the APIConverter.from_api_output method.
+
+        :return: dict[str, tuple[str, APIConverter]]
+        """
         pass
 
     @classmethod
@@ -106,7 +136,7 @@ class APIConverter(abc.ABC):
             if param is None:
                 continue
 
-            if isinstance(param, str): # Assign parameter if there's no type passed
+            if isinstance(param, str):  # Assign parameter if there's no type passed
                 params[param] = v
             else:  #
                 param, _type = param
@@ -234,4 +264,32 @@ class Agent(APIConverter):
 
     @classmethod
     def from_uuid(cls, uuid: str):
-        return cls.from_api_output(requests.get(f"https://valorant-api.com/v1/agents/{uuid}").json())
+        return cls.from_api_output(requests.get(f"https://valorant-api.com/v1/agents/{uuid}").json()["data"])
+
+
+class Agents:
+    Gekko = Agent.from_uuid("e370fa57-4757-3604-3648-499e1f642d3f")
+    Fade = Agent.from_uuid("dade69b4-4f5a-8528-247b-219e5a1facd6")
+    Breach = Agent.from_uuid("5f8d3a7f-467b-97f3-062c-13acf203c006")
+    Deadlock = Agent.from_uuid("cc8b64c8-4b25-4ff9-6e7f-37b4da43d235")
+    Raze = Agent.from_uuid("f94c3b30-42be-e959-889c-5aa313dba261")
+    Chamber = Agent.from_uuid("22697a3d-45bf-8dd7-4fec-84a9e28c69d7")
+    KAYO = Agent.from_uuid("601dbbe7-43ce-be57-2a40-4abd24953621")
+    Skye = Agent.from_uuid("6f2a04ca-43e0-be17-7f36-b3908627744d")
+    Cypher = Agent.from_uuid("117ed9e3-49f3-6512-3ccf-0cada7e3823b")
+    Sova = Agent.from_uuid("320b2a48-4d9b-a075-30f1-1f93a9b638fa")
+    Killjoy = Agent.from_uuid("1e58de9c-4950-5125-93e9-a0aee9f98746")
+    Harbor = Agent.from_uuid("95b78ed7-4637-86d9-7e41-71ba8c293152")
+    Viper = Agent.from_uuid("707eab51-4836-f488-046a-cda6bf494859")
+    Phoenix = Agent.from_uuid("eb93336a-449b-9c1b-0a54-a891f7921d69")
+    Astra = Agent.from_uuid("41fb69c1-4189-7b37-f117-bcaf1e96f1bf")
+    Brimstone = Agent.from_uuid("9f0d8ba9-4140-b941-57d3-a7ad57c6b417")
+    Iso = Agent.from_uuid("0e38b510-41a8-5780-5e8f-568b2a4f2d6c")
+    Neon = Agent.from_uuid("bb2a4828-46eb-8cd1-e765-15848195d751")
+    Yoru = Agent.from_uuid("7f94d92c-4234-0a36-9646-3a87eb8b5c89")
+    Sage = Agent.from_uuid("569fdd95-4d10-43ab-ca70-79becc718b46")
+    Reyna = Agent.from_uuid("a3bfb853-43b2-7238-a4f1-ad90e9e46bcc")
+    Omen = Agent.from_uuid("8e253930-4c05-31dd-1b6c-968525494517")
+    Jett = Agent.from_uuid("add6443a-41bd-e414-f6ad-e58d267f4e95")
+
+

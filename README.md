@@ -1,12 +1,27 @@
 # Valorant.py
-Valorant.py is a Valorant API wrapper covering most of the "hidden" API.
 
-Show your current Valorant daily store
-````py
-from valorant import Valorant
+Valorant.py is a Valorant API wrapper and XMPP client.
 
-player = Valorant("YourUserName", "YourPassword")
+Implementing your own XMPP
 
-for skin in player.get_daily_skins():
-    print(skin.name, skin.image, skin.price, sep="\n")
-````
+```py
+from valorant import XMPP
+
+
+class MyCustomXMPPClient(XMPP):
+    def __init__(
+            self,
+            username: str,
+            password: str
+    ) -> None:
+        super().__init__(username, password)
+
+    async def process_message(self, element: Element) -> None:
+        pass
+
+    async def process_iq(self, element: Element) -> None:
+        pass
+
+    async def process_presence(self, element: Element) -> None:
+        pass
+```
