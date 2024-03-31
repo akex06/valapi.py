@@ -42,7 +42,7 @@ emojis = {
     27: ("radiant", 1222269267961970919)
 }
 
-BOT_TOKEN = "ODc3NTU5ODQyMDM2OTQwODYx.GwoPzj.DnUQGuqOK201bKs7aO9JlfB9a9Rf-jTdMzSVQU"
+BOT_TOKEN = ""
 
 
 class Match:
