@@ -1,8 +1,3 @@
-import requests
-from requests.auth import HTTPBasicAuth
-from valorant import LockFile
+from database import Database
 
-lockfile = LockFile()
-
-print(requests.get(f"https://127.0.0.1:{lockfile.port}/rso-auth/v1/authorization/userinfo",
-                   auth=HTTPBasicAuth("riot", lockfile.password), verify=False ).text)
+print(Database().get_codes())

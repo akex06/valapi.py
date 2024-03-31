@@ -291,5 +291,6 @@ class Agents:
     Reyna = Agent.from_uuid("a3bfb853-43b2-7238-a4f1-ad90e9e46bcc")
     Omen = Agent.from_uuid("8e253930-4c05-31dd-1b6c-968525494517")
     Jett = Agent.from_uuid("add6443a-41bd-e414-f6ad-e58d267f4e95")
+    Clove = Agent.from_uuid("1dbf2edd-4729-0984-3115-daa5eed44993")
 
 

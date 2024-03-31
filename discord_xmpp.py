@@ -8,6 +8,7 @@ from xml.etree.ElementTree import Element
 import requests
 from PIL import Image, ImageFont, ImageDraw
 
+from database import Database
 from valorant import Valorant
 from valorant.constants import ranks
 from valorant.xmpp import XMPP
@@ -41,7 +42,8 @@ emojis = {
     27: ("radiant", 1222269267961970919)
 }
 
-BOT_TOKEN = "YOURTOKEN"
+BOT_TOKEN = "ODc3NTU5ODQyMDM2OTQwODYx.GwoPzj.DnUQGuqOK201bKs7aO9JlfB9a9Rf-jTdMzSVQU"
+
 
 class Match:
     def __init__(
@@ -218,9 +220,7 @@ class Match:
     def get_thumbnail(self) -> BytesIO:
         thumbnail = Image.open(BytesIO(requests.get(self.player_card["displayIcon"]).content))
 
-        border_level = Image.open(BytesIO(
-            requests.get(self.val.get_border_level(self.player_id)["levelNumberAppearance"]).content
-        ))
+        border_level = Image.open("resources/borderlevel.png")
 
         font = ImageFont.truetype("resources/din_next_regular.otf", 16)
         draw = ImageDraw.Draw(border_level)
@@ -245,10 +245,18 @@ class DiscordXMPP(XMPP):
             username,
             password
         )
-        self.matches: dict[str, Match] = dict()
 
-    async def process_presence(self, presence: Element):
-        games = presence.find("games")
+        self.matches: dict[str, Match] = dict()
+        self.database = Database()
+
+    async def send_message(self, player_jid: str, message: str) -> None:
+        await self.send(
+            f'<message id="{time.time() * 1000}:1" to="{player_jid}" type="chat"><body>{message}</body></message>'
+            .encode("utf-8")
+        )
+
+    async def process_presence(self, presence_element: Element) -> None:
+        games = presence_element.find("games")
         if games is None:
             return
 
@@ -260,7 +268,7 @@ class DiscordXMPP(XMPP):
         if match_data["sessionLoopState"] != "INGAME":
             return
 
-        uuid = presence.get("from").split("@")[0]
+        uuid = presence_element.get("from").split("@")[0]
         if uuid not in self.matches:
             if match_data["matchMap"] == "":
                 return
@@ -272,30 +280,35 @@ class DiscordXMPP(XMPP):
         if delete_match:
             del self.matches[uuid]
 
-    async def process_message(self, element: Element) -> None:
-        print("message received")
-        await self.send(
-            f'<message id="{time.time() * 1000}:1" to="5072dddd-eb63-53b3-baed-42ba3d8519f8@eu1.pvp.net" type="chat"><body>asd</body></message>'
-            .encode("utf-8")
-        )
+    async def process_message(self, message_element: Element) -> None:
+        await self.send_message(message_element.get("from").split("/")[0], "Hey!")
 
-    async def process_iq(self, element: Element) -> None:
-        query = element.find("{jabber:iq:riotgames:roster}query")
+    async def process_iq(self, iq_element: Element) -> None:
+        query = iq_element.find("{jabber:iq:riotgames:roster}query")
         if query is None:
             return
 
         item = query.find("{jabber:iq:riotgames:roster}item")
         subscription = item.get("subscription")
 
+        uuid = iq_element.get("from").split("@")[0]
         if subscription == "pending_in":
             player = item.find("{jabber:iq:riotgames:roster}id")
             await self.add_friend(player.get("name"), player.get("tagline"))
-
-
-xmpp = DiscordXMPP("pitosexo69", "#Test12345")
+            player_jid = item.get("jid")
+            otp_code = self.database.set_otp_code(uuid)
+            await self.send_message(
+                player_jid,
+                (
+                    f"Hey there, your OTP code is {otp_code}, dm the code to Foo#Faa or use the /link command in my dms"
+                    " to start the configuration, you can add the bot to your server, invite in"
+                    " https://github.com/akex06/valorant.py"
+                ))
 
 
 async def main():
+    xmpp = DiscordXMPP("pitosexo69", "#Test12345")
+
     await xmpp.connect()
     await xmpp.start_auth_flow()
     await xmpp.process_messages()

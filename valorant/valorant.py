@@ -63,18 +63,6 @@ class Valorant:
             json={}
         ).json()
 
-    def get_border_level(self, player_id: str | None = None) -> dict:
-        if player_id is None:
-            player_id = self.user_info["sub"]
-
-        last_match_id = self.get_match_history(player_id, amount=1)["History"][0]["MatchID"]
-
-        players = self.get_match_details(last_match_id)["players"]
-        player = list(filter(lambda player_data: player_data["subject"] == player_id, players))[0]
-
-        preferred_border = player.get("preferredLevelBorder", "ebc736cd-4b6a-137b-e2b0-1486e31312c9")
-        return requests.get(f"https://valorant-api.com/v1/levelborders/{preferred_border}").json()["data"]
-
     def get_region(self) -> Region:
         a = self.session.put(
             "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant",

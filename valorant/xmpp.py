@@ -1,15 +1,11 @@
 import abc
 import asyncio
 import ssl
-from typing import Callable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
 from valorant import Valorant
 from valorant.constants import xmpp_regions, xmpp_servers
-
-
-# TODO create Match class to handle updates
 
 
 class XMPP(abc.ABC):
@@ -63,10 +59,12 @@ class XMPP(abc.ABC):
         )
         rso_token_elem = Element("rso_token")
         rso_token_elem.text = self.val.auth.get_access_token()
+        auth.append(rso_token_elem)
+
         pas_token_elem = Element("pas_token")
         pas_token_elem.text = self.val.auth.get_pas_token()
-        auth.append(rso_token_elem)
         auth.append(pas_token_elem)
+
         return ElementTree.tostring(auth, encoding="utf-8")
 
     @staticmethod
