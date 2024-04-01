@@ -5,8 +5,10 @@ import time
 from io import BytesIO
 from xml.etree.ElementTree import Element
 
+import discord
 import requests
 from PIL import Image, ImageFont, ImageDraw
+from discord.ext import commands
 
 from database import Database
 from valorant import Valorant
@@ -49,11 +51,12 @@ class Match:
     def __init__(
             self,
             val: Valorant,
+            database: Database,
             uuid: str,
             match_data: dict
     ) -> None:
-        self.image_id = 1
         self.val = val
+        self.database = database
         self.player_id = uuid
         self.match_data = match_data
 
@@ -77,9 +80,7 @@ class Match:
         ).json()["data"]
 
         self.thumbnail = self.get_thumbnail()
-
-        self.channel_id = 1218009024159678667
-        self.message_id = self.send_message()["id"]
+        self.message_id = None
 
     def get_payload(self, *, updating: bool = False) -> dict:
         ally_score, enemy_score = self.score
@@ -125,39 +126,42 @@ class Match:
 
         return message
 
-    def update(self, match_data: dict) -> bool:
+    def update(self, match_data: dict) -> str | None:
         self.match_data = match_data
         total_score = self.match_data["partyOwnerMatchScoreAllyTeam"] + self.match_data["partyOwnerMatchScoreEnemyTeam"]
 
         if sum(self.score) > 0 and total_score == 0:
             self.ended = True
-            return True
+            return
 
         self.score = self.match_data["partyOwnerMatchScoreAllyTeam"], self.match_data["partyOwnerMatchScoreEnemyTeam"]
-        self.update_message()
+        return self.send_message()
 
-        return False
+    def send_message(self, *, updating: bool = False) -> str | None:
+        request_method = self.discord_session.patch if updating else self.discord_session.post
 
-    def send_message(self) -> dict:
-        payload = self.get_payload()
-        return self.discord_session.post(
-            f"https://discord.com/api/v9/channels/{self.channel_id}/messages",
+        user_id = self.database.get_user_id(self.player_id)
+        if user_id is None:
+            code = self.database.get_otp_code(self.player_id)
+            return f"Please link your Discord account with /link_account using this OTP code: {code}"
+
+        channel_id = self.database.get_channel_id(self.player_id)
+        if channel_id is None:
+            return "Please link the channel using /link_channel"
+
+        url = f"https://discord.com/api/v9/channels/{channel_id}/messages"
+        if updating:
+            url = f"{url}/{self.message_id}"
+
+        message = request_method(
+            url,
             files=[
                 ("files[1]", ("image.png", self.get_match_image())),
                 ("files[2]", ("thumbnail.png", self.get_thumbnail())),
-                ("payload_json", ("", json.dumps(payload), "application/json"))
+                ("payload_json", ("", json.dumps(self.get_payload(updating=updating)), "application/json"))
             ]
         ).json()
-
-    def update_message(self) -> dict:
-        return self.discord_session.patch(
-            f"https://discord.com/api/v9/channels/{self.channel_id}/messages/{self.message_id}",
-            files=[
-                ("files[1]", ("image.png", self.get_match_image())),
-                ("files[2]", ("thumbnail.png", self.get_thumbnail())),
-                ("payload_json", ("", json.dumps(self.get_payload(updating=True)), "application/json"))
-            ]
-        ).json()
+        self.message_id = message["id"]
 
     def get_user(self) -> tuple[str, str]:
         user = self.val.session.put(
@@ -240,7 +244,8 @@ class Match:
 
 
 class DiscordXMPP(XMPP):
-    def __init__(self, username: str, password: str) -> None:
+    def __init__(self, bot: commands.Bot, username: str, password: str) -> None:
+        self.bot = bot
         super().__init__(
             username,
             password
@@ -249,11 +254,20 @@ class DiscordXMPP(XMPP):
         self.matches: dict[str, Match] = dict()
         self.database = Database()
 
+    async def start(self) -> None:
+        await self.connect()
+        await self.start_auth_flow()
+        await self.accept_friend_requests()
+        await self.process_messages()
+
     async def send_message(self, player_jid: str, message: str) -> None:
         await self.send(
             f'<message id="{time.time() * 1000}:1" to="{player_jid}" type="chat"><body>{message}</body></message>'
             .encode("utf-8")
         )
+
+    async def accept_friend_requests(self) -> None:
+        await self.send('<iq type="get"><query xmlns="jabber:iq:riotgames:roster" /></iq>'.encode("utf-8"))
 
     async def process_presence(self, presence_element: Element) -> None:
         games = presence_element.find("games")
@@ -268,17 +282,21 @@ class DiscordXMPP(XMPP):
         if match_data["sessionLoopState"] != "INGAME":
             return
 
-        uuid = presence_element.get("from").split("@")[0]
-        if uuid not in self.matches:
+        player_jid = presence_element.get("from")
+        player_id = player_jid.split("@")[0]
+        if player_id not in self.matches:
             if match_data["matchMap"] == "":
                 return
 
-            self.matches[uuid] = Match(self.val, uuid, match_data)
+            self.matches[player_id] = Match(self.val, self.database, player_id, match_data)
             return
 
-        delete_match = self.matches[uuid].update(match_data)
-        if delete_match:
-            del self.matches[uuid]
+        reply = self.matches[player_id].update(match_data)
+        if reply is not None:
+            await self.send_message(player_jid, reply)
+
+        if self.matches[player_id].ended:
+            del self.matches[player_id]
 
     async def process_message(self, message_element: Element) -> None:
         await self.send_message(message_element.get("from").split("/")[0], "Hey!")
@@ -288,11 +306,13 @@ class DiscordXMPP(XMPP):
         if query is None:
             return
 
-        item = query.find("{jabber:iq:riotgames:roster}item")
-        subscription = item.get("subscription")
+        items = query.findall("{jabber:iq:riotgames:roster}item")
+        for item in items:
+            subscription = item.get("subscription")
+            uuid = iq_element.get("from").split("@")[0]
+            if subscription != "pending_in":
+                continue
 
-        uuid = iq_element.get("from").split("@")[0]
-        if subscription == "pending_in":
             player = item.find("{jabber:iq:riotgames:roster}id")
             await self.add_friend(player.get("name"), player.get("tagline"))
             player_jid = item.get("jid")
@@ -306,12 +326,29 @@ class DiscordXMPP(XMPP):
                 ))
 
 
-async def main():
-    xmpp = DiscordXMPP("pitosexo69", "#Test12345")
+class Bot(commands.Bot):
+    def __init__(self, xmpp: DiscordXMPP | None, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.xmpp = xmpp
+        self.database = Database()
 
-    await xmpp.connect()
-    await xmpp.start_auth_flow()
-    await xmpp.process_messages()
+    async def on_ready(self) -> None:
+        print(f"[   READY   ]: {self.user}")
+
+    async def setup_hook(self) -> None:
+        await self.load_extension("cogs.linker")
+        # await self.tree.sync()
+
+
+async def main():
+    bot = Bot(None, command_prefix="v", intents=discord.Intents.all())
+    xmpp = DiscordXMPP(bot, "pitosexo69", "#Test12345")
+    bot.xmpp = xmpp
+
+    bot_task = asyncio.create_task(bot.start(BOT_TOKEN))
+    xmpp_task = asyncio.create_task(xmpp.start())
+
+    await asyncio.gather(bot_task, xmpp_task)
 
 
 asyncio.run(main())

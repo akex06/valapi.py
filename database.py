@@ -40,7 +40,15 @@ class Database:
             "SELECT user_id FROM account_links WHERE player_id = ?",
             (player_id,)
         ).fetchone()
+        print(user_id, player_id)
         return user_id[0] if user_id else None
+
+    def get_player_id(self, user_id: int) -> str | None:
+        player_id = self.c.execute(
+            "SELECT player_id FROM account_links WHERE user_id = ?",
+            (user_id,)
+        ).fetchone()
+        return player_id[0] if player_id else None
 
     def add_account_link(self, player_id: str, user_id: int) -> None:
         exists = self.c.execute(
@@ -64,12 +72,23 @@ class Database:
         self.c.execute("DELETE FROM account_links WHERE player_id=?", (player_id,))
         self.conn.commit()
 
-    def get_channel_id(self, player_id: str) -> int:
+    def get_channel_id(self, player_id: str) -> int | None:
         channel = self.c.execute("SELECT channel_id FROM channel_links WHERE player_id = ?", (player_id,)).fetchone()
         if channel:
             return channel[0]
 
-        raise ValueError("No channel was found with that player id")
+        return None
+
+    def set_channel_link(self, user_id: int, channel_id: int) -> None:
+        player_id = self.get_player_id(user_id)
+        channel = self.get_channel_id(player_id)
+
+        if channel:
+            self.c.execute("UPDATE channel_links SET channel_id = ? WHERE player_id = ?", (player_id, channel_id))
+        else:
+            self.c.execute("INSERT INTO channel_links (player_id, channel_id) VALUES (?, ?)", (player_id, channel_id))
+
+        self.conn.commit()
 
     def get_codes(self) -> list[int]:
         return self.c.execute("SELECT code FROM otp_codes").fetchall()
@@ -84,6 +103,17 @@ class Database:
         self.conn.commit()
 
         return code
+
+    def get_otp_code(self, player_id: str) -> int:
+        otp_code = self.c.execute(
+            "SELECT code FROM otp_codes WHERE player_id = ?",
+            (player_id,)
+        ).fetchone()
+
+        if otp_code:
+            return otp_code[0]
+
+        return self.set_otp_code(player_id)
 
     def is_code_valid(self, code: int) -> str | None:
         """
