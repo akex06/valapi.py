@@ -6,7 +6,7 @@ Implementing your own XMPP
 
 ```py
 from valorant import XMPP
-
+from xml.etree.ElementTree import Element
 
 class MyCustomXMPPClient(XMPP):
     def __init__(

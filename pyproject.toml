@@ -1,0 +1,22 @@
+[project]
+name ="valorant.py_Akex06"
+version = "0.0.1"
+authors = [
+    { name="Akex06", email="alessandro@akex.dev" }
+]
+description = "A Python implementation of the Valorant public and hidden API"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/akex06/valorant.py"
+Issues = "https://github.com/akex06/valorant.py/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

@@ -3,7 +3,6 @@ Classes and methods related to Valorant API calls
 """
 import base64
 import json
-import socket
 
 import requests
 import urllib3
@@ -351,6 +350,3 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
             }
         ).json()
-
-    def get_xmpp_socket(self) -> socket.socket:
-        pass
