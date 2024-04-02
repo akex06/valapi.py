@@ -7,7 +7,7 @@ import json
 import requests
 import urllib3
 
-from valorant.classes import Auth, Version
+from valorant.classes import Auth, Version, User
 from valorant.constants import URLS, API, Region, regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -30,7 +30,7 @@ class Valorant:
         self.region = self.get_region()
         self.pd_server = f"https://pd.{self.region.region}.a.pvp.net"
         self.glz_server = f"https://glz-{self.region.region}-1.{self.region.shard}.a.pvp.net"
-        self.user_info = self.get_user_info()
+        self.user_info = self.get_user()
 
     @property
     def client_platform(self) -> bytes:
@@ -52,15 +52,17 @@ class Valorant:
             timeout=30
         ).json()["data"]
 
-    def get_user_info(self) -> dict:
-        return self.session.post(
-            URLS.USERINFO_URL,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.auth.get_access_token()}"
-            },
-            json={}
-        ).json()
+    def get_user(self) -> User:
+        user_info = self.session.post(
+                URLS.USERINFO_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.auth.get_access_token()}"
+                },
+                json={}
+            ).json()
+        print(user_info)
+        return User.from_api_output(user_info)
 
     def get_region(self) -> Region:
         a = self.session.put(
@@ -88,7 +90,7 @@ class Valorant:
 
     def get_account_xp(self) -> dict:
         return self.session.get(
-            f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info['sub']}",
+            f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info.player_id}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -97,7 +99,7 @@ class Valorant:
 
     def get_loadout(self) -> dict:
         return self.session.get(
-            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
+            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info.player_id}/playerloadout",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -107,7 +109,7 @@ class Valorant:
     def set_loadout(self, loadout: dict) -> None:
         # TODO: Make a class for loadout to make this easier
         self.session.put(
-            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info['sub']}/playerloadout",
+            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info.player_id}/playerloadout",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -117,7 +119,7 @@ class Valorant:
 
     def get_player_mmr(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info["sub"]
+            player_id = self.user_info.player_id
 
         return self.session.get(
             f"{self.pd_server}{API.MMR}/{player_id}",
@@ -132,7 +134,7 @@ class Valorant:
     def get_match_history(self, player_id: str | None = None, offset: int | None = 0, amount: int | None = 20) -> dict:
         # TODO: add queue parameter when ids are known
         if player_id is None:
-            player_id = self.user_info["sub"]
+            player_id = self.user_info.player_id
 
         return self.session.get(
             f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={offset}&endIndex={amount}",
@@ -191,7 +193,7 @@ class Valorant:
 
     def get_store(self) -> dict:
         return requests.get(
-            f"{self.pd_server}{API.STORE}/{self.user_info['sub']}",
+            f"{self.pd_server}{API.STORE}/{self.user_info.player_id}",
             headers={
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
@@ -203,7 +205,7 @@ class Valorant:
 
     def get_wallet(self) -> dict:
         return self.session.get(
-            f"{self.pd_server}{API.WALLET}/{self.user_info['sub']}",
+            f"{self.pd_server}{API.WALLET}/{self.user_info.player_id}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -212,7 +214,7 @@ class Valorant:
 
     def get_items(self, item_type: str) -> dict:
         return self.session.get(
-            f"{self.pd_server}{API.OWNED}/{self.user_info['sub']}/{item_type}",
+            f"{self.pd_server}{API.OWNED}/{self.user_info.player_id}/{item_type}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}"
@@ -222,7 +224,7 @@ class Valorant:
 
     def get_pregame_id(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info['sub']
+            player_id = self.user_info.player_id
 
         return self.session.get(
             f"{self.glz_server}{API.PREGAME_PLAYER}/{player_id}",
@@ -294,7 +296,7 @@ class Valorant:
 
     def get_current_game_player(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info["sub"]
+            player_id = self.user_info.player_id
 
         print(f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}")
         return self.session.get(
@@ -340,7 +342,7 @@ class Valorant:
 
     def get_contracts(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info["sub"]
+            player_id = self.user_info.player_id
 
         return self.session.get(
             f"{self.pd_server}{API.CONTRACTS}/{player_id}",

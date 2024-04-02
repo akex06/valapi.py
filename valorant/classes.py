@@ -311,14 +311,14 @@ class Version(APIConverter):
 
     def __init__(
             self,
-            manifest_id,
-            branch,
-            version,
-            build_version,
-            engine_version,
-            riot_client_version,
-            riot_client_build,
-            build_date
+            manifest_id: str,
+            branch: str,
+            version: str,
+            build_version: str,
+            engine_version: str,
+            riot_client_version: str,
+            riot_client_build: str,
+            build_date: str
     ):
         self.manifest_id = manifest_id
         self.branch = branch
@@ -328,3 +328,45 @@ class Version(APIConverter):
         self.riot_client_version = riot_client_version
         self.riot_client_build = riot_client_build
         self.build_date = build_date
+
+
+class User(APIConverter):
+    mapping = {
+        "country": "country",
+        "sub": "player_id",
+        "email_verified": "is_email_verified",
+        "player_plocale": "player_plocale",
+        "country_at": "country_at",
+        "pw": "pw",
+        "phone_number_verified": "is_phone_number_verified",
+        "ppid": "ppid",
+        "player_locale": "player_locale",
+        "acct": "acct",
+        "jti": "jti"
+    }
+
+    def __init__(
+            self,
+            country: str,
+            player_id: str,
+            is_email_verified: bool,
+            player_plocale: str | None,
+            country_at: int | None,
+            pw: dict,
+            is_phone_number_verified: bool,
+            ppid: str | None,
+            player_locale: str | None,
+            acct: dict,
+            jti: str,
+    ):
+        self.country = country
+        self.player_id = player_id
+        self.is_email_verified = is_email_verified
+        self.player_plocale = player_plocale
+        self.country_at = country_at
+        self.pw = pw
+        self.is_phone_number_verified = is_phone_number_verified
+        self.ppid = ppid
+        self.player_locale = player_locale
+        self.acct = acct
+        self.jti = jti
