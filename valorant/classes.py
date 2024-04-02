@@ -295,3 +295,36 @@ class Agents:
         self.OMEN = Agent.from_api_output(agents["8e253930-4c05-31dd-1b6c-968525494517"])
         self.JETT = Agent.from_api_output(agents["add6443a-41bd-e414-f6ad-e58d267f4e95"])
         self.CLOVE = Agent.from_api_output(agents["1dbf2edd-4729-0984-3115-daa5eed44993"])
+
+
+class Version(APIConverter):
+    mapping = {
+        "manifestId": "manifest_id",
+        "branch": "branch",
+        "version": "version",
+        "buildVersion": "build_version",
+        "engineVersion": "engine_version",
+        "riotClientVersion": "riot_client_version",
+        "riotClientBuild": "riot_client_build",
+        "buildDate": "build_date"
+    }
+
+    def __init__(
+            self,
+            manifest_id,
+            branch,
+            version,
+            build_version,
+            engine_version,
+            riot_client_version,
+            riot_client_build,
+            build_date
+    ):
+        self.manifest_id = manifest_id
+        self.branch = branch
+        self.version = version
+        self.build_version = build_version
+        self.engine_version = engine_version
+        self.riot_client_version = riot_client_version
+        self.riot_client_build = riot_client_build
+        self.build_date = build_date

@@ -1,5 +1,5 @@
 [project]
-name ="valorant.py_Akex06"
+name ="valapi.py"
 version = "0.0.1"
 authors = [
     { name="Akex06", email="alessandro@akex.dev" }
@@ -12,10 +12,12 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-
+dependencies = [
+    "requests"
+]
 [project.urls]
-Homepage = "https://github.com/akex06/valorant.py"
-Issues = "https://github.com/akex06/valorant.py/issues"
+Homepage = "https://github.com/akex06/valapi.py"
+Issues = "https://github.com/akex06/valapi.py/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
