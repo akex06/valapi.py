@@ -1,6 +1,6 @@
-# Valorant.py
+# ValAPI.py
 
-Valorant.py is a Valorant API wrapper and XMPP client.
+ValAPI.py is a Valorant API wrapper and XMPP client.
 
 Implementing your own XMPP
 
