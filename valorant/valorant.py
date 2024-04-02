@@ -7,7 +7,7 @@ import json
 import requests
 import urllib3
 
-from valorant.classes import Auth, Version, User
+from valorant.classes import Auth, Version, User, AccountXP
 from valorant.constants import URLS, API, Region, regions
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -61,7 +61,6 @@ class Valorant:
                 },
                 json={}
             ).json()
-        print(user_info)
         return User.from_api_output(user_info)
 
     def get_region(self) -> Region:
@@ -88,14 +87,16 @@ class Valorant:
             }
         ).json()
 
-    def get_account_xp(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info.player_id}",
-            headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}"
-            }
-        ).json()
+    def get_account_xp(self) -> AccountXP:
+        return AccountXP.from_api_output(
+            self.session.get(
+                f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info.player_id}",
+                headers={
+                    "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                    "Authorization": f"Bearer {self.auth.get_access_token()}"
+                }
+            ).json()
+        )
 
     def get_loadout(self) -> dict:
         return self.session.get(

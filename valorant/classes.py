@@ -1,6 +1,6 @@
 import abc
 import os
-from typing import Self
+from typing import Self, Literal
 
 import requests
 
@@ -189,7 +189,7 @@ class Role(APIConverter):
             name: str,
             description: str,
             display_icon: str
-    ):
+    ) -> None:
         self.id = _id
         self.name = name
         self.description = description
@@ -210,7 +210,7 @@ class Ability(APIConverter):
             slot: int,
             description: str,
             display_icon: str
-    ):
+    ) -> None:
         self.name = name
         self.slot = slot
         self.description = description
@@ -247,7 +247,7 @@ class Agent(APIConverter):
             colors: list[str],
             role: Role,
             abilities: list[Ability]
-    ):
+    ) -> None:
         self.id = _id
         self.name = name
         self.description = description
@@ -267,7 +267,7 @@ class Agent(APIConverter):
 
 
 class Agents:
-    def __init__(self):
+    def __init__(self) -> None:
         agent_list = requests.get("https://valorant-api.com/v1/agents/").json()["data"]
         agents = {agent["uuid"]: agent for agent in agent_list}
 
@@ -319,7 +319,7 @@ class Version(APIConverter):
             riot_client_version: str,
             riot_client_build: str,
             build_date: str
-    ):
+    ) -> None:
         self.manifest_id = manifest_id
         self.branch = branch
         self.version = version
@@ -358,7 +358,7 @@ class User(APIConverter):
             player_locale: str | None,
             acct: dict,
             jti: str,
-    ):
+    ) -> None:
         self.country = country
         self.player_id = player_id
         self.is_email_verified = is_email_verified
@@ -370,3 +370,82 @@ class User(APIConverter):
         self.player_locale = player_locale
         self.acct = acct
         self.jti = jti
+
+
+class Progress(APIConverter):
+    mapping = {
+        "Level": "level",
+        "XP": "xp"
+    }
+
+    def __init__(self, level: int, xp: int) -> None:
+        self.level = level
+        self.xp = xp
+
+
+class XPSource(APIConverter):
+    mapping = {
+        "ID": "_id",
+        "Amount": "amount"
+    }
+
+    def __init__(self, _id: Literal["time-played", "match-win", "first-win-of-the-day"], amount: int) -> None:
+        self.id = _id
+        self.amount = amount
+
+
+class MatchDetails(APIConverter):
+    mapping = {
+        "ID": "_id",
+        "MatchStart": "start",
+        "StartProgress": ("start_progress", Progress),
+        "EndProgress": ("end_progress", Progress),
+        "XPDelta": "xp_delta",
+        "XPSources": ("xp_sources", XPSource),
+        "XPMultipliers": "xp_multipliers"
+    }
+
+    def __init__(
+            self,
+            _id: str,
+            start: str,
+            start_progress: Progress,
+            end_progress: Progress,
+            xp_delta: int,
+            xp_sources: XPSource,
+            xp_multiplier: list,
+    ) -> None:
+        self._id = _id
+        self.start = start
+        self.start_progress = start_progress
+        self.end_progress = end_progress
+        self.xp_delta = xp_delta
+        self.xp_sources = xp_sources
+        self.xp_multiplier = xp_multiplier
+
+
+class AccountXP(APIConverter):
+    mapping = {
+        "Version": "version",
+        "Subject": "player_id",
+        "Progress": ("progress", Progress),
+        "History": ("history", MatchDetails),
+        "LastTimeGrantedFirstWin": "last_time_granted_first_win",
+        "NextTimeFirstWinAvailable": "next_time_first_win_available"
+    }
+
+    def __init__(
+            self,
+            version: int,
+            player_id: str,
+            progress: Progress,
+            history: list[MatchDetails],
+            last_time_granted_first_win: str,
+            next_time_first_win_available: str,
+    ) -> None:
+        self.version = version
+        self.player_id = player_id
+        self.progress = progress
+        self.history = history
+        self.last_time_granted_first_win = last_time_granted_first_win
+        self.next_time_first_win_available = next_time_first_win_available
