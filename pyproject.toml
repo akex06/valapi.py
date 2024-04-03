@@ -13,7 +13,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "requests"
+    "requests",
+    "msgspec"
 ]
 [project.urls]
 Homepage = "https://github.com/akex06/valapi.py"
