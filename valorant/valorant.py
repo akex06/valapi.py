@@ -8,7 +8,7 @@ import json
 import msgspec.json
 import requests
 
-from valorant.classes import Version, User, AccountXP, Loadout, Match
+from valorant.structs.structs import Version, User, AccountXP, Loadout, Match
 from valorant.constants import URLS, API, Region, regions
 from valorant.auth import Auth
 
@@ -162,8 +162,6 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
         ).content
-        with open("test.json", "w") as f:
-            json.dump(json.loads(match.decode()), f, indent=4)
         return msgspec.json.decode(match, type=Match)
 
     def get_leaderboard(
