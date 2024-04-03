@@ -8,7 +8,7 @@ import json
 import msgspec.json
 import requests
 
-from valorant.classes import Version, User, AccountXP, Loadout
+from valorant.classes import Version, User, AccountXP, Loadout, Match
 from valorant.constants import URLS, API, Region, regions
 from valorant.auth import Auth
 
@@ -154,14 +154,15 @@ class Valorant:
             },
         ).json()
 
-    def get_match_details(self, match_id: str) -> dict:
-        return self.session.get(
+    def get_match_details(self, match_id: str) -> Match:
+        match = self.session.get(
             f"{self.pd_server}{API.MATCHES}/{match_id}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
-        ).json()
+        ).content
+        return msgspec.json.decode(match, type=Match)
 
     def get_leaderboard(
         self,

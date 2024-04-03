@@ -18,215 +18,562 @@ class LockFile:
             )
 
 
-class Role(msgspec.Struct):
-    id: str = msgspec.field(name="uuid")
-    name: str = msgspec.field(name="displayName")
-    description: str = msgspec.field(name="description")
-    icon: str = msgspec.field(name="displayIcon")
+class Role(
+    msgspec.Struct,
+    rename={
+        "id": "uuid",
+        "name": "displayName",
+        "description": "description",
+        "icon": "displayIcon",
+    },
+):
+    id: str
+    name: str
+    description: str
+    icon: str
 
 
-class Ability(msgspec.Struct):
+class Ability(
+    msgspec.Struct,
+    rename={
+        "slot": "slot",
+        "name": "displayName",
+        "description": "description",
+        "icon": "displayIcon",
+    },
+):
+    slot: str
+    name: str
+    description: str
+    icon: str
 
-    slot: str = msgspec.field(name="slot")
-    name: str = msgspec.field(name="displayName")
-    description: str = msgspec.field(name="description")
-    icon: str = msgspec.field(name="displayIcon")
 
-
-class Agent(msgspec.Struct):
-    id: str = msgspec.field(name="uuid")
-    name: str = msgspec.field(name="displayName")
-    description: str = msgspec.field(name="description")
-    developer_name: str = msgspec.field(name="developerName")
-    tags: list[str] | None = msgspec.field(name="characterTags")
-    display_icon: str = msgspec.field(name="displayIcon")
-    portrait: str = msgspec.field(name="fullPortrait")
-    kill_portrait: str = msgspec.field(name="killfeedPortrait")
-    background: str = msgspec.field(name="background")
-    colors: list[str] = msgspec.field(name="backgroundGradientColors")
-    role: str = msgspec.field(name="role")
-    abilities: list[Ability] = msgspec.field(name="abilities")
+class Agent(
+    msgspec.Struct,
+    rename={
+        "id": "uuid",
+        "name": "displayName",
+        "developer_name": "developerName",
+        "tags": "characterTags",
+        "display_icon": "displayIcon",
+        "portrait": "fullPortrait",
+        "kill_portrait": "killfeedPortrait",
+        "colors": "backgroundGradientColors",
+    },
+):
+    id: str
+    name: str
+    description: str
+    developer_name: str
+    tags: list[str] | None
+    display_icon: str
+    portrait: str
+    kill_portrait: str
+    background: str
+    colors: list[str]
+    role: str
+    abilities: list[Ability]
 
 
 class Version(msgspec.Struct):
-    # TODO: Learn to pass the contents of valorant-api.com data to the struct without converting to json
-    # manifest_id: str = msgspec.field(name="manifestId")
-    # branch: str = msgspec.field(name="branch")
-    # version: str = msgspec.field(name="version")
-    # build_version: str = msgspec.field(name="buildVersion")
-    # engine_version: str = msgspec.field(name="engineVersion")
-    # riot_client_version: str = msgspec.field(name="riotClientVersion")
-    # riot_client_build: str = msgspec.field(name="riotClientBuild")
-    # build_date: str = msgspec.field(name="buildDate")
-
-    manifestId: str = msgspec.field(name="manifestId")
-    branch: str = msgspec.field(name="branch")
-    version: str = msgspec.field(name="version")
-    buildVersion: str = msgspec.field(name="buildVersion")
-    engineVersion: str = msgspec.field(name="engineVersion")
-    riotClientVersion: str = msgspec.field(name="riotClientVersion")
-    riotClientBuild: str = msgspec.field(name="riotClientBuild")
-    buildDate: str = msgspec.field(name="buildDate")
+    # TODO: Learn to pass the contents of valorant-api.com "data" attrib to the struct without converting to json
+    manifestId: str
+    branch: str
+    version: str
+    buildVersion: str
+    engineVersion: str
+    riotClientVersion: str
+    riotClientBuild: str
+    buildDate: str
 
 
 class Password(msgspec.Struct):
     change_at: int = msgspec.field(name="cng_at")
-    reset: bool = msgspec.field(name="reset")
-    must_reset: bool = msgspec.field(name="must_reset")
+    reset: bool
+    must_reset: bool
 
 
-class Account(msgspec.Struct):
-    type: int = msgspec.field(name="type")
-    state: str = msgspec.field(name="state")
+class Account(
+    msgspec.Struct, rename={"admin": "adm", "name": "game_name", "tagline": "tag_line"}
+):
+    type: int
+    state: str
     admin: bool = msgspec.field(name="adm")
-    name: str = msgspec.field(name="game_name")
-    tagline: str = msgspec.field(name="tag_line")
-    created_at: int = msgspec.field(name="created_at")
+    name: str
+    tagline: str
+    created_at: int
 
 
-class User(msgspec.Struct):
-    country: str = msgspec.field(name="country")
-    player_id: str = msgspec.field(name="sub")
-    is_email_verified: bool = msgspec.field(name="email_verified")
-    country_at: int | None = msgspec.field(name="country_at")
-    password: Password = msgspec.field(name="pw")
-    is_phone_number_verified: bool = msgspec.field(name="phone_number_verified")
-    ppid: str | None = msgspec.field(name="ppid")
-    player_locale: str | None = msgspec.field(name="player_locale")
-    account: Account = msgspec.field(name="acct")
-    jti: str = msgspec.field(name="jti")
+class User(
+    msgspec.Struct,
+    rename={
+        "player_id": "sub",
+        "is_email_verified": "email_verified",
+        "password": "pw",
+        "is_phone_number_verified": "phone_number_verified",
+        "account": "acct",
+    },
+):
+    country: str
+    player_id: str
+    is_email_verified: bool
+    country_at: int | None
+    password: Password
+    is_phone_number_verified: bool
+    ppid: str | None
+    player_locale: str | None
+    account: Account
+    jti: str
 
 
-class Progress(msgspec.Struct):
-    level: int = msgspec.field(name="Level")
-    xp: int = msgspec.field(name="XP")
+class Progress(msgspec.Struct, rename={"level": "Level", "xp": "XP"}):
+    level: int
+    xp: int
 
 
-class XPSource(msgspec.Struct):
-    id: Literal["time-played", "match-win", "first-win-of-the-day"] = msgspec.field(
-        name="ID"
-    )
-    amount: int = msgspec.field(name="Amount")
+class XPSource(msgspec.Struct, rename={"id": "ID", "amount": "Amount"}):
+    id: Literal["time-played", "match-win", "first-win-of-the-day"]
+    amount: int
 
 
-class AccountXPMatch(msgspec.Struct):
-    start: str = msgspec.field(name="MatchStart")
-    start_progress: Progress = msgspec.field(name="StartProgress")
-    end_progress: Progress = msgspec.field(name="EndProgress")
-    xp_delta: int = msgspec.field(name="XPDelta")
-    xp_sources: list[XPSource] = msgspec.field(name="XPSources")
-    xp_multipliers: list[str] = msgspec.field(name="XPMultipliers")
+class AccountXPMatch(
+    msgspec.Struct,
+    rename={
+        "start": "MatchStart",
+        "start_progress": "StartProgress",
+        "end_progress": "EndProgress",
+        "xp_delta": "XPDelta",
+        "xp_sources": "XPSources",
+        "xp_multipliers": "XPMultipliers",
+    },
+):
+    start: str
+    start_progress: Progress
+    end_progress: Progress
+    xp_delta: int
+    xp_sources: list[XPSource]
+    xp_multipliers: list[str]
 
 
-class AccountXP(msgspec.Struct):
-    version: int = msgspec.field(name="Version")
-    player_id: str = msgspec.field(name="Subject")
-    progress: Progress = msgspec.field(name="Progress")
-    history: list[AccountXPMatch] = msgspec.field(name="History")
-    last_time_granted_first_win: str = msgspec.field(name="LastTimeGrantedFirstWin")
-    next_time_first_win_available: str = msgspec.field(name="NextTimeFirstWinAvailable")
+class AccountXP(
+    msgspec.Struct,
+    rename={
+        "version": "Version",
+        "player_id": "Subject",
+        "progress": "Progress",
+        "history": "History",
+        "last_time_granted_first_win": "LastTimeGrantedFirstWin",
+        "next_time_first_win_available": "NextTimeFirstWinAvailable",
+    },
+):
+    version: int
+    player_id: str
+    progress: Progress
+    history: list[AccountXPMatch]
+    last_time_granted_first_win: str
+    next_time_first_win_available: str
 
 
-class Gun(msgspec.Struct):
-    id: int = msgspec.field(name="Subject")
-    charm_instance_id: str | None = msgspec.field(name="CharmInstanceID")
-    charm_id: str | None = msgspec.field(name="CharmID")
-    charm_level_id: str | None = msgspec.field(name="CharmLevelID")
-    skin_id: str = msgspec.field(name="SkinID")
-    skin_level_id: str = msgspec.field(name="SkinLevelID")
-    chroma_id: str = msgspec.field(name="ChromaID")
-    attachments: list[str] = msgspec.field(name="attachments")
+class Gun(
+    msgspec.Struct,
+    rename={
+        "id": "Subject",
+        "charm_instance_id": "CharmInstanceID",
+        "charm_id": "CharmID",
+        "charm_level_id": "CharmLevelID",
+        "skin_id": "SkinID",
+        "skin_level_id": "SkinLevelID",
+        "chroma_id": "ChromaID",
+        "attachments": "attachments",
+    },
+):
+    id: int
+    charm_instance_id: str | None
+    charm_id: str | None
+    charm_level_id: str | None
+    skin_id: str
+    skin_level_id: str
+    chroma_id: str
+    attachments: list[str]
 
 
-class Spray(msgspec.Struct):
-    slot: str = msgspec.field(name="EquipSlotID")
-    spray_id: str = msgspec.field(name="SprayID")
-    spray_level_id: None = msgspec.field(name="SprayLevelID")
+class Spray(
+    msgspec.Struct,
+    rename={"slot": "EquipSlotID", "spray_id": "SprayID"},
+):
+    slot: str
+    spray_id: str
 
 
-class Identity(msgspec.Struct):
-    player_card_id: str = msgspec.field(name="PlayerCardID")
-    player_title_id: str = msgspec.field(name="PlayerTitleID")
-    level: int = msgspec.field(name="AccountLevel")
-    level_border: str = msgspec.field(name="PreferredLevelBorderID")
-    hide_level: bool = msgspec.field(name="HideAccountLevel")
+class Identity(
+    msgspec.Struct,
+    rename={
+        "player_card_id": "PlayerCardID",
+        "player_title_id": "PlayerTitleID",
+        "level": "AccountLevel",
+        "level_border": "PreferredLevelBorderID",
+        "hide_level": "HideAccountLevel",
+    },
+):
+    player_card_id: str
+    player_title_id: str
+    level: int
+    level_border: str
+    hide_level: bool
 
 
-class Loadout(msgspec.Struct):
-    player_id: str = msgspec.field(name="Subject")
-    version: int = msgspec.field(name="Version")
-    guns: list[Gun] = msgspec.field(name="Guns")
-    sprays: list[Spray] = msgspec.field(name="Sprays")
-    identity: Identity = msgspec.field(name="Identity")
-    incognito: bool = msgspec.field(name="Incognito")
+class Loadout(
+    msgspec.Struct,
+    rename={
+        "player_id": "Subject",
+        "version": "Version",
+        "guns": "Guns",
+        "sprays": "Sprays",
+        "identity": "Identity",
+        "incognito": "Incognito",
+    },
+):
+    player_id: str
+    version: int
+    guns: list[Gun]
+    sprays: list[Spray]
+    identity: Identity
+    incognito: bool
 
 
-class MatchInfo(msgspec.Struct):
-    id: str = msgspec.field(name="matchId")
-    map_id: str = msgspec.field(name="mapId")
-    game_pod_id: str = msgspec.field(name="gamePodId")
-    game_loop_zone: str = msgspec.field(name="gameLoopZone")
-    server: str = msgspec.field(name="gameServerAddress")
-    version: str = msgspec.field(name="gameVersion")
-    duration: int | None = msgspec.field(name="gameLengthMillis")
-    game_start_millis: str = msgspec.field(name="gameStartMillis")
-    provisioning_flow_id: Literal["Matchmaking", "CustomGame"] = msgspec.field(
-        name="provisioningFlowID"
-    )
-    has_finished: bool = msgspec.field(name="isCompleted")
-    custom_game_name: str = msgspec.field(name="customGameName")
-    force_post_processing: bool = msgspec.field(name="forcePostProcessing")
-    queue_id: str = msgspec.field(name="queueID")
-    game_mode: str = msgspec.field(name="gameMode")
-    is_ranked: bool = msgspec.field(name="isRanked")
-    is_match_sampled: bool = msgspec.field(name="isMatchSampled")
-    season_id: str = msgspec.field(name="seasonId")
-    completion_state: Literal["Surrendered", "Completed", "VoteDraw", ""] = (
-        msgspec.field(name="completionState")
-    )
-    party_penalties: dict = msgspec.field(name="partyRRPenalties")
-    should_match_disabled_penalties: bool = msgspec.field(
-        name="shouldMatchDisablePenalties"
-    )
+class MatchInfo(
+    msgspec.Struct,
+    rename={
+        "id": "matchId",
+        "map_id": "mapId",
+        "game_pod_id": "gamePodId",
+        "game_loop_zone": "gameLoopZone",
+        "server": "gameServerAddress",
+        "version": "gameVersion",
+        "duration": "gameLengthMillis",
+        "game_start_millis": "gameStartMillis",
+        "provisioning_flow_id": "provisioningFlowID",
+        "has_finished": "isCompleted",
+        "custom_game_name": "customGameName",
+        "force_post_processing": "forcePostProcessing",
+        "queue_id": "queueID",
+        "game_mode": "gameMode",
+        "is_ranked": "isRanked",
+        "is_match_sampled": "isMatchSampled",
+        "season_id": "seasonId",
+        "completion_state": "completionState",
+        "party_penalties": "partyRRPenalties",
+        "should_match_disabled_penalties": "shouldMatchDisablePenalties",
+    },
+):
+    id: str
+    map_id: str
+    game_pod_id: str
+    game_loop_zone: str
+    server: str
+    version: str
+    duration: int | None
+    game_start_millis: int
+    provisioning_flow_id: Literal["Matchmaking", "CustomGame"]
+    has_finished: bool
+    custom_game_name: str
+    force_post_processing: bool
+    queue_id: str
+    game_mode: str
+    is_ranked: bool
+    is_match_sampled: bool
+    season_id: str
+    completion_state: Literal["Surrendered", "Completed", "VoteDraw", ""]
+    party_penalties: dict
+    should_match_disabled_penalties: bool
 
 
-class AbilityCasts(msgspec.Struct):
-    grenade: int = msgspec.field(name="grenadeCasts")
-    ability1: int = msgspec.field(name="ability1Casts")
-    ability2: int = msgspec.field(name="ability2Casts")
-    ultimate: int = msgspec.field(name="ultimateCasts")
+class AbilityCasts(
+    msgspec.Struct,
+    rename={
+        "grenade": "grenadeCasts",
+        "ability1": "ability1Casts",
+        "ability2": "ability2Casts",
+        "ultimate": "ultimateCasts",
+    },
+):
+    grenade: int
+    ability1: int
+    ability2: int
+    ultimate: int
 
 
-class PlayerStats(msgspec.Struct):
-    score: int = msgspec.field(name="score")
-    roundsPlayed: int = msgspec.field(name="roundsPlayed")
-    kills: int = msgspec.field(name="kills")
-    deaths: int = msgspec.field(name="deaths")
-    assists: int = msgspec.field(name="assists")
-    playtimeMillis: int = msgspec.field(name="playtimeMillis")
-    ability_casts: tuple[AbilityCasts] | None = msgspec.field(name="abilityCasts")
+class PlayerMatchStats(
+    msgspec.Struct,
+    rename={
+        "rounds": "roundsPlayed",
+        "playtime_millis": "playtimeMillis",
+        "ability_casts": "abilityCasts",
+    },
+):
+    score: int
+    rounds: int
+    kills: int
+    deaths: int
+    assists: int
+    playtime_millis: int
+    ability_casts: AbilityCasts | None = None
 
 
-class RoundDamage(msgspec.Struct):
-    round: int = msgspec.field(name="round")
+class RoundDamage(
+    msgspec.Struct, rename={"receiver_id": "receiver", "amount": "damage"}
+):
+    round: int
+    receiver_id: str
+    amount: int
+
+
+class XPModifier(msgspec.Struct, rename={"id": "ID", "multiplier": "Value"}):
+    id: str
+    multiplier: int
+
+
+class Behavior(
+    msgspec.Struct,
+    rename={
+        "afk_rounds": "afkRounds",
+        "comms_rating_recovery": "commsRatingRecovery",
+        "damage_participation_outgoing": "damageParticipationOutgoing",
+        "friendly_fire_incoming": "friendlyFireIncoming",
+        "friendly_fire_outgoing": "friendlyFireOutgoing",
+        "mouse_movement": "mouseMovement",
+        "rounds_in_spawn": "stayedInSpawnRounds",
+    },
+):
+    afk_rounds: int
+    comms_rating_recovery: int
+    damage_participation_outgoing: int
+    friendly_fire_incoming: int
+    friendly_fire_outgoing: int
+    mouse_movement: int
+    rounds_in_spawn: int
+
+
+class Player(
+    msgspec.Struct,
+    rename={
+        "player_id": "subject",
+        "name": "gameName",
+        "tagline": "tagLine",
+        "team": "teamId",
+        "party_id": "partyId",
+        "character_id": "characterId",
+        "stats": "stats",
+        "damage": "round_damage",
+        "rank": "competitiveTier",
+        "is_observer": "isObserver",
+        "player_card_id": "playerCard",
+        "player_title_id": "playerTitle",
+        "border_level": "preferredLevelBorder",
+        "level": "accountLevel",
+        "play_time": "playTimeMinutes",
+        "xp_modifications": "xpModifications",
+        "behavior": "behaviorFactors",
+    },
+):
+    player_id: str
+    name: str
+    tagline: str
+    team: Literal["Blue", "Red"]
+    party_id: str
+    character_id: str
+    stats: PlayerMatchStats
+    damage: list[RoundDamage]
+    rank: int
+    is_observer: bool
+    player_card_id: str
+    player_title_id: str
+    border_level: str | Literal[""]
+    level: int
+    # TODO change to timedelta
+    play_time: int | None
+    xp_modifications: list[XPModifier]
+    behavior: Behavior
+
+
+class Coach(msgspec.Struct, rename={"id": "subject", "team": "teamId"}):
+    id: str
+    team: Literal["blue", "red"]
+
+
+class Team(
+    msgspec.Struct,
+    rename={
+        "team": "teamId",
+        "won": "won",
+        "rounds_played": "roundsPlayed",
+        "rounds_won": "roundsWon",
+        "points": "numPoints",
+    },
+):
+    team: Literal["blue", "red"]
+    won: bool
+    rounds_played: int
+    rounds_won: int
+    points: int
+
+
+class Location(msgspec.Struct):
+    x: float
+    y: float
+
+
+class PlayerLocation(
+    msgspec.Struct,
+    rename={
+        "player_id": "subject",
+        "view_radians": "viewRadians",
+        "location": "plantLocation",
+    },
+):
+    player_id: str
+    view_radians: int
+    location: Location
+
+
+class FinishingDamage(msgspec.Struct, rename="camel"):
+    type: Literal["Weapon", "Bomb", "Ability", "Fall", "Melee", "Invalid", ""]
+    item: Literal["Ultimate", "Ability1", "Ability2", "GrenadeAbility", "Primary", ""]
+    is_secondary_fire_mode: bool
+
+
+class Kill(
+    msgspec.Struct,
+    rename={
+        "game_time": "gameTime",
+        "round_time": "roundTime",
+        "killer_id": "killer",
+        "victim_id": "victim",
+        "victim_location": "victimLocation",
+        "assistants": "assistants",
+        "player_locations": "playerLocations",
+        "finishing_damage": "finishingDamage",
+    },
+):
+    game_time: int
+    round_time: int
+    killer_id: str
+    victim_id: str
+    victim_location: Location
+    assistants: list[str]
+    player_locations: list[PlayerLocation]
+    finishing_damage: FinishingDamage
+
+
+class Damage(msgspec.Struct):
     receiver_id: str = msgspec.field(name="receiver")
-    amount: int = msgspec.field(name="damage")
+    damage: int
+    legshots: int
+    bodyshots: int
+    headshots: int
 
 
-class Player(msgspec.Struct):
+class Economy(
+    msgspec.Struct,
+    rename={
+        "credits": "loadoutValue",
+        "weapon_id": "weapon",
+        "armor_id": "armor",
+    },
+):
+    player_id: str
+    credits: int
+    weapon_id: str | Literal[""]
+    armor_id: str | Literal[""]
+    remaining: int
+    spent: int
+
+
+class PlayerStats(
+    msgspec.Struct,
+    rename={
+        "player_id": "subject",
+        "afk": "wasAfk",
+        "penalized": "was_penalized",
+        "stayed_in_spawn": "stayedInSpawn",
+    },
+):
+    player_id: str
+    kills: list[Kill]
+    damage: list[Damage]
+    score: int
+    economy: Economy
+    afk: bool
+    penalized: bool
+    stayed_in_spawn: bool
+
+
+class Score(msgspec.Struct):
     player_id: str = msgspec.field(name="subject")
-    name: str = msgspec.field(name="gameName")
-    tagline: str = msgspec.field(name="tagLine")
-    team: Literal["Blue", "Red"] = msgspec.field(name="teamId")
-    party_id: str = msgspec.field(name="partyId")
-    character_id: str = msgspec.field(name="characterId")
-    stats: PlayerStats = msgspec.field(name="stats")
+    score: int
 
 
-class Match(msgspec.Struct):
-    history: MatchInfo = msgspec.field(name="matchInfo")
-    players: list[Player] = msgspec.field(name="matchInfo")
-    coaches: list[Coach] = msgspec.field(name="matchInfo")
-    teams: list[Team] | None = msgspec.field(name="matchInfo")
-    rounds: list[Round] | None = msgspec.field(name="matchInfo")
-    kills: list[Kill] = msgspec.field(name="matchInfo")
+class Round(
+    msgspec.Struct,
+    rename={
+        "number": "roundNumber",
+        "result": "roundResult",
+        "ceremony": "roundCeremony",
+        "who_won": "winningTeam",
+        "bomb_planter_id": "bombPlanter",
+        "bomb_defuser_id": "bombDefuser",
+        "time_since_plant": "plantRoundTime",
+        "site": "plantSite",
+        "time_until_defuse": "defuseRoundTime",
+        "defuse_location": "defuseLocation",
+        "player_stats": "playerStats",
+        "plant_player_locations": "plantPlayerLocations",
+        "defuse_player_locations": "defusePlayerLocations",
+        "round_result": "roundResultCode",
+    },
+):
+    number: int
+    result: Literal[
+        "Eliminated",
+        "Bomb detonated",
+        "Bomb defused",
+        "Surrendered",
+        "Round timer expired",
+    ]
+    ceremony: Literal[
+        "CeremonyDefault",
+        "CeremonyTeamAce",
+        "CeremonyFlawless",
+        "CeremonyCloser",
+        "CeremonyClutch",
+        "CeremonyThrifty",
+        "CeremonyAce",
+        "",
+    ]
+    who_won: Literal["Blue", "Red"]
+    bomb_planter_id: str
+    bomb_defuser_id: str
+    # TODO change to timedelta
+    time_since_plant: int
+    plant_player_locations: list[PlayerLocation]
+    site: Literal["A", "B", "C", ""]
+    # TODO change to timedelta
+    time_until_defuse: int
+    defuse_player_locations: list[PlayerLocation]
+    defuse_location: Location
+    player_stats: list[PlayerStats]
+    round_result: Literal["Elimination", "Detonate", "Defuse", "Surrendered", ""]
+    player_economies: list[Economy] | None
+    player_scores: list[Score] | None
+
+
+class Match(
+    msgspec.Struct,
+    rename={"info": "matchInfo", "rounds": "roundResults"},
+):
+    info: MatchInfo
+    players: list[Player]
+    coaches: list[Coach]
+    teams: list[Team] | None
+    rounds: list[Round] | None
+    kills: list[Kill]
