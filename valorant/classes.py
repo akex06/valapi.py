@@ -65,7 +65,6 @@ class Agent(
     name: str
     description: str
     developer_name: str
-    tags: list[str] | None
     display_icon: str
     portrait: str
     kill_portrait: str
@@ -73,6 +72,7 @@ class Agent(
     colors: list[str]
     role: str
     abilities: list[Ability]
+    tags: list[str] | None = None
 
 
 class Version(msgspec.Struct):
@@ -117,13 +117,13 @@ class User(
     country: str
     player_id: str
     is_email_verified: bool
-    country_at: int | None
     password: Password
     is_phone_number_verified: bool
-    ppid: str | None
-    player_locale: str | None
     account: Account
     jti: str
+    country_at: int | None = None
+    ppid: str | None = None
+    player_locale: str | None = None
 
 
 class Progress(msgspec.Struct, rename={"level": "Level", "xp": "XP"}):
@@ -188,13 +188,13 @@ class Gun(
     },
 ):
     id: int
-    charm_instance_id: str | None
-    charm_id: str | None
-    charm_level_id: str | None
     skin_id: str
     skin_level_id: str
     chroma_id: str
     attachments: list[str]
+    charm_instance_id: str | None = None
+    charm_id: str | None = None
+    charm_level_id: str | None = None
 
 
 class Spray(
@@ -272,7 +272,6 @@ class MatchInfo(
     game_loop_zone: str
     server: str
     version: str
-    duration: int | None
     game_start_millis: int
     provisioning_flow_id: Literal["Matchmaking", "CustomGame"]
     has_finished: bool
@@ -286,6 +285,7 @@ class MatchInfo(
     completion_state: Literal["Surrendered", "Completed", "VoteDraw", ""]
     party_penalties: dict
     should_match_disabled_penalties: bool
+    duration: int | None = None
 
 
 class AbilityCasts(
@@ -371,7 +371,7 @@ class Player(
         "player_title_id": "playerTitle",
         "border_level": "preferredLevelBorder",
         "level": "accountLevel",
-        "play_time": "playTimeMinutes",
+        "play_time": "sessionPlayTimeMinutes",
         "xp_modifications": "xpModifications",
         "behavior": "behaviorFactors",
     },
@@ -382,18 +382,18 @@ class Player(
     team: Literal["Blue", "Red"]
     party_id: str
     character_id: str
-    stats: PlayerMatchStats
-    damage: list[RoundDamage]
     rank: int
     is_observer: bool
     player_card_id: str
     player_title_id: str
-    border_level: str | Literal[""]
     level: int
     # TODO change to timedelta
-    play_time: int | None
-    xp_modifications: list[XPModifier]
     behavior: Behavior
+    stats: PlayerMatchStats | None = None
+    play_time: int | None = None
+    damage: list[RoundDamage] | None = None
+    border_level: str | Literal[""] = None
+    xp_modifications: list[XPModifier] = None
 
 
 class Coach(msgspec.Struct, rename={"id": "subject", "team": "teamId"}):
@@ -411,14 +411,14 @@ class Team(
         "points": "numPoints",
     },
 ):
-    team: Literal["blue", "red"]
+    team: Literal["Blue", "Red"]
     won: bool
     rounds_played: int
     rounds_won: int
     points: int
 
 
-class Location(msgspec.Struct):
+class Location(msgspec.Struct, rename={"view_radians": "viewRadians"}):
     x: float
     y: float
 
@@ -432,14 +432,30 @@ class PlayerLocation(
     },
 ):
     player_id: str
-    view_radians: int
+    view_radians: float
     location: Location
 
 
-class FinishingDamage(msgspec.Struct, rename="camel"):
+class FinishingDamage(
+    msgspec.Struct,
+    rename={
+        "type": "damageType",
+        "item": "damageItem",
+        "is_secondary_fire_mode": "isSecondaryFireMode",
+    },
+):
     type: Literal["Weapon", "Bomb", "Ability", "Fall", "Melee", "Invalid", ""]
-    item: Literal["Ultimate", "Ability1", "Ability2", "GrenadeAbility", "Primary", ""]
+    item: (
+        str
+        | Literal["Ultimate", "Ability1", "Ability2", "GrenadeAbility", "Primary", ""]
+    )
     is_secondary_fire_mode: bool
+
+
+class PlantPlayerLocation(msgspec.Struct, rename={"player_id": "subject"}):
+    player_id: str
+    view_radians: float = msgspec.field(name="viewRadians")
+    location: Location
 
 
 class Kill(
@@ -461,7 +477,7 @@ class Kill(
     victim_id: str
     victim_location: Location
     assistants: list[str]
-    player_locations: list[PlayerLocation]
+    player_locations: list[PlantPlayerLocation]
     finishing_damage: FinishingDamage
 
 
@@ -481,7 +497,6 @@ class Economy(
         "armor_id": "armor",
     },
 ):
-    player_id: str
     credits: int
     weapon_id: str | Literal[""]
     armor_id: str | Literal[""]
@@ -494,7 +509,7 @@ class PlayerStats(
     rename={
         "player_id": "subject",
         "afk": "wasAfk",
-        "penalized": "was_penalized",
+        "penalized": "wasPenalized",
         "stayed_in_spawn": "stayedInSpawn",
     },
 ):
@@ -516,7 +531,7 @@ class Score(msgspec.Struct):
 class Round(
     msgspec.Struct,
     rename={
-        "number": "roundNumber",
+        "number": "roundNum",
         "result": "roundResult",
         "ceremony": "roundCeremony",
         "who_won": "winningTeam",
@@ -551,20 +566,20 @@ class Round(
         "",
     ]
     who_won: Literal["Blue", "Red"]
-    bomb_planter_id: str
-    bomb_defuser_id: str
     # TODO change to timedelta
     time_since_plant: int
-    plant_player_locations: list[PlayerLocation]
     site: Literal["A", "B", "C", ""]
     # TODO change to timedelta
     time_until_defuse: int
-    defuse_player_locations: list[PlayerLocation]
     defuse_location: Location
     player_stats: list[PlayerStats]
     round_result: Literal["Elimination", "Detonate", "Defuse", "Surrendered", ""]
-    player_economies: list[Economy] | None
-    player_scores: list[Score] | None
+    defuse_player_locations: list[PlayerLocation] | None = None
+    player_economies: list[Economy] | None = None
+    player_scores: list[Score] | None = None
+    plant_player_locations: list[PlantPlayerLocation] | None = None
+    bomb_defuser_id: str | None = None
+    bomb_planter_id: str | None = None
 
 
 class Match(
@@ -574,6 +589,6 @@ class Match(
     info: MatchInfo
     players: list[Player]
     coaches: list[Coach]
-    teams: list[Team] | None
-    rounds: list[Round] | None
     kills: list[Kill]
+    teams: list[Team] | None = None
+    rounds: list[Round] | None = None

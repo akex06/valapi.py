@@ -162,6 +162,8 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
         ).content
+        with open("test.json", "w") as f:
+            json.dump(json.loads(match.decode()), f, indent=4)
         return msgspec.json.decode(match, type=Match)
 
     def get_leaderboard(
