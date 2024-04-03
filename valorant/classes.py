@@ -2,97 +2,6 @@ import os
 from typing import Literal
 
 import msgspec
-import requests
-
-from valorant.constants import URLS
-
-
-class Auth:
-    def __init__(self, session: requests.Session, username: str, password: str) -> None:
-        self.session = session
-
-        self.username = username
-        self.password = password
-
-        self.__access_token = None
-        self.__id_token = None
-        self.__entitlement_token = None
-        self.__pas_token = None
-
-    def set_auth_cookies(self) -> None:
-        self.session.post(
-            url=URLS.AUTH_URL,
-            json={
-                "acr_values": "urn:riot:bronze",
-                "claims": "",
-                "client_id": "riot-client",
-                "nonce": "oYnVwCSrlS5IHKh7iI16oQ",
-                "redirect_uri": "http://localhost/redirect",
-                "response_type": "token id_token",
-                "scope": "openid link ban lol_region",
-            },
-        )
-
-    def get_access_token(self) -> str:
-        if self.__access_token is not None:
-            return self.__access_token
-
-        put_data = {
-            "language": "en_US",
-            "password": self.password,
-            "remember": "true",
-            "type": "auth",
-            "username": self.username,
-        }
-        request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
-
-        if request["type"] == "multifactor":
-            raise ValueError("Multifactor needed, please disable it and try again")
-
-        tokens = dict(
-            map(
-                lambda x: x.split("="),
-                request["response"]["parameters"]["uri"].split("#")[1].split("&"),
-            )
-        )  # weird shit, extracts anchors from url and transforms them into a dict
-
-        self.__access_token, self.__id_token = (
-            tokens["access_token"],
-            tokens["id_token"],
-        )
-        return self.__access_token
-
-    def get_id_token(self) -> str:
-        if self.__id_token is not None:
-            return self.__id_token
-
-        self.__access_token, self.__id_token = self.get_access_token()
-        return self.__id_token
-
-    def get_entitlement_token(self) -> str:
-        if self.__entitlement_token is not None:
-            return self.__entitlement_token
-
-        self.__entitlement_token = self.session.post(
-            URLS.ENTITLEMENT_URL,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.get_access_token()}",
-            },
-            json={},
-        ).json()["entitlements_token"]
-
-        return self.__entitlement_token
-
-    def get_pas_token(self) -> str:
-        if self.__pas_token is not None:
-            return self.__pas_token
-
-        self.__pas_token = self.session.get(
-            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
-            headers={"Authorization": f"Bearer {self.get_access_token()}"},
-        ).text
-        return self.__pas_token
 
 
 class LockFile:
@@ -192,3 +101,37 @@ class AccountXP(msgspec.Struct):
     history: list[AccountXPMatch] = msgspec.field(name="History")
     last_time_granted_first_win: str = msgspec.field(name="LastTimeGrantedFirstWin")
     next_time_first_win_available: str = msgspec.field(name="NextTimeFirstWinAvailable")
+
+
+class Gun(msgspec.Struct):
+    id: int = msgspec.field(name="Subject")
+    charm_instance_id: str | None = msgspec.field(name="CharmInstanceID")
+    charm_id: str | None = msgspec.field(name="CharmID")
+    charm_level_id: str | None = msgspec.field(name="CharmLevelID")
+    skin_id: str = msgspec.field(name="SkinID")
+    skin_level_id: str = msgspec.field(name="SkinLevelID")
+    chroma_id: str = msgspec.field(name="ChromaID")
+    attachments: list[str] = msgspec.field(name="attachments")
+
+
+class Spray(msgspec.Struct):
+    slot: str = msgspec.field(name="EquipSlotID")
+    spray_id: str = msgspec.field(name="SprayID")
+    spray_level_id: None = msgspec.field(name="SprayLevelID")
+
+
+class Identity(msgspec.Struct):
+    player_card_id: str = msgspec.field(name="PlayerCardID")
+    player_title_id: str = msgspec.field(name="PlayerTitleID")
+    level: int = msgspec.field(name="AccountLevel")
+    level_border: str = msgspec.field(name="PreferredLevelBorderID")
+    hide_level: bool = msgspec.field(name="HideAccountLevel")
+
+
+class Loadout(msgspec.Struct):
+    player_id: str = msgspec.field(name="Subject")
+    version: int = msgspec.field(name="Version")
+    guns: list[Gun] = msgspec.field(name="Guns")
+    sprays: list[Spray] = msgspec.field(name="Sprays")
+    identity: Identity = msgspec.field(name="Identity")
+    incognito: bool = msgspec.field(name="Incognito")
