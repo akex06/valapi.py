@@ -59,17 +59,31 @@ class Version(msgspec.Struct):
     build_date: str = msgspec.field(name="buildDate")
 
 
+class Password(msgspec.Struct):
+    change_at: int = msgspec.field(name="cng_at")
+    reset: bool = msgspec.field(name="reset")
+    must_reset: bool = msgspec.field(name="must_reset")
+
+
+class Account(msgspec.Struct):
+    type: int = msgspec.field(name="type")
+    state: str = msgspec.field(name="state")
+    admin: bool = msgspec.field(name="adm")
+    name: str = msgspec.field(name="game_name")
+    tagline: str = msgspec.field(name="tag_line")
+    created_at: int = msgspec.field(name="created_at")
+
+
 class User(msgspec.Struct):
     country: str = msgspec.field(name="country")
     player_id: str = msgspec.field(name="sub")
-    is_email_verified: str = msgspec.field(name="email_verified")
-    player_plocale: str = msgspec.field(name="player_plocale")
-    country_at: str = msgspec.field(name="country_at")
-    pw: str = msgspec.field(name="pw")
-    is_phone_number_verified: str = msgspec.field(name="phone_number_verified")
-    ppid: str = msgspec.field(name="ppid")
-    player_locale: str = msgspec.field(name="player_locale")
-    acct: str = msgspec.field(name="acct")
+    is_email_verified: bool = msgspec.field(name="email_verified")
+    country_at: int | None = msgspec.field(name="country_at")
+    password: Password = msgspec.field(name="pw")
+    is_phone_number_verified: bool = msgspec.field(name="phone_number_verified")
+    ppid: str | None = msgspec.field(name="ppid")
+    player_locale: str | None = msgspec.field(name="player_locale")
+    account: Account = msgspec.field(name="acct")
     jti: str = msgspec.field(name="jti")
 
 

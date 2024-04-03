@@ -5,9 +5,10 @@ Classes and methods related to Valorant API calls
 import base64
 import json
 
+import msgspec.json
 import requests
-from valorant.classes import Auth, Version, User, AccountXP
-from valorant.constants import URLS, API, Region, regions
+
+from valorant import Auth, Version, User, AccountXP, Loadout, URLS, API, Region, regions
 
 
 class Valorant:
@@ -66,8 +67,8 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
             json={},
-        ).json()
-        return User.from_api_output(user_info)
+        ).content
+        return msgspec.json.decode(user_info, type=User)
 
     def get_region(self) -> Region:
         a = self.session.put(
@@ -92,34 +93,33 @@ class Valorant:
         ).json()
 
     def get_account_xp(self) -> AccountXP:
-        return AccountXP.from_api_output(
-            self.session.get(
-                f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info.player_id}",
-                headers={
-                    "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                    "Authorization": f"Bearer {self.auth.get_access_token()}",
-                },
-            ).json()
-        )
+        account_xp = self.session.get(
+            f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info.player_id}",
+            headers={
+                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {self.auth.get_access_token()}",
+            },
+        ).content
+        return msgspec.json.decode(account_xp, type=AccountXP)
 
-    def get_loadout(self) -> dict:
-        return self.session.get(
+    def get_loadout(self) -> Loadout:
+        loadout = self.session.get(
             f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info.player_id}/playerloadout",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
-        ).json()
+        ).content
+        return msgspec.json.decode(loadout, type=Loadout)
 
-    def set_loadout(self, loadout: dict) -> None:
-        # TODO: Make a class for loadout to make this easier
+    def set_loadout(self, loadout: Loadout) -> None:
         self.session.put(
             f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info.player_id}/playerloadout",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
-            json=loadout,
+            json=msgspec.json.encode(loadout),
         )
 
     def get_player_mmr(self, player_id: str | None = None) -> dict:
