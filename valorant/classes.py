@@ -49,14 +49,24 @@ class Agent(msgspec.Struct):
 
 
 class Version(msgspec.Struct):
-    manifest_id: str = msgspec.field(name="manifestId")
+    # TODO: Learn to pass the contents of valorant-api.com data to the struct without converting to json
+    # manifest_id: str = msgspec.field(name="manifestId")
+    # branch: str = msgspec.field(name="branch")
+    # version: str = msgspec.field(name="version")
+    # build_version: str = msgspec.field(name="buildVersion")
+    # engine_version: str = msgspec.field(name="engineVersion")
+    # riot_client_version: str = msgspec.field(name="riotClientVersion")
+    # riot_client_build: str = msgspec.field(name="riotClientBuild")
+    # build_date: str = msgspec.field(name="buildDate")
+
+    manifestId: str = msgspec.field(name="manifestId")
     branch: str = msgspec.field(name="branch")
     version: str = msgspec.field(name="version")
-    build_version: str = msgspec.field(name="buildVersion")
-    engine_version: str = msgspec.field(name="engineVersion")
-    riot_client_version: str = msgspec.field(name="riotClientVersion")
-    riot_client_build: str = msgspec.field(name="riotClientBuild")
-    build_date: str = msgspec.field(name="buildDate")
+    buildVersion: str = msgspec.field(name="buildVersion")
+    engineVersion: str = msgspec.field(name="engineVersion")
+    riotClientVersion: str = msgspec.field(name="riotClientVersion")
+    riotClientBuild: str = msgspec.field(name="riotClientBuild")
+    buildDate: str = msgspec.field(name="buildDate")
 
 
 class Password(msgspec.Struct):
@@ -149,3 +159,74 @@ class Loadout(msgspec.Struct):
     sprays: list[Spray] = msgspec.field(name="Sprays")
     identity: Identity = msgspec.field(name="Identity")
     incognito: bool = msgspec.field(name="Incognito")
+
+
+class MatchInfo(msgspec.Struct):
+    id: str = msgspec.field(name="matchId")
+    map_id: str = msgspec.field(name="mapId")
+    game_pod_id: str = msgspec.field(name="gamePodId")
+    game_loop_zone: str = msgspec.field(name="gameLoopZone")
+    server: str = msgspec.field(name="gameServerAddress")
+    version: str = msgspec.field(name="gameVersion")
+    duration: int | None = msgspec.field(name="gameLengthMillis")
+    game_start_millis: str = msgspec.field(name="gameStartMillis")
+    provisioning_flow_id: Literal["Matchmaking", "CustomGame"] = msgspec.field(
+        name="provisioningFlowID"
+    )
+    has_finished: bool = msgspec.field(name="isCompleted")
+    custom_game_name: str = msgspec.field(name="customGameName")
+    force_post_processing: bool = msgspec.field(name="forcePostProcessing")
+    queue_id: str = msgspec.field(name="queueID")
+    game_mode: str = msgspec.field(name="gameMode")
+    is_ranked: bool = msgspec.field(name="isRanked")
+    is_match_sampled: bool = msgspec.field(name="isMatchSampled")
+    season_id: str = msgspec.field(name="seasonId")
+    completion_state: Literal["Surrendered", "Completed", "VoteDraw", ""] = (
+        msgspec.field(name="completionState")
+    )
+    party_penalties: dict = msgspec.field(name="partyRRPenalties")
+    should_match_disabled_penalties: bool = msgspec.field(
+        name="shouldMatchDisablePenalties"
+    )
+
+
+class AbilityCasts(msgspec.Struct):
+    grenade: int = msgspec.field(name="grenadeCasts")
+    ability1: int = msgspec.field(name="ability1Casts")
+    ability2: int = msgspec.field(name="ability2Casts")
+    ultimate: int = msgspec.field(name="ultimateCasts")
+
+
+class PlayerStats(msgspec.Struct):
+    score: int = msgspec.field(name="score")
+    roundsPlayed: int = msgspec.field(name="roundsPlayed")
+    kills: int = msgspec.field(name="kills")
+    deaths: int = msgspec.field(name="deaths")
+    assists: int = msgspec.field(name="assists")
+    playtimeMillis: int = msgspec.field(name="playtimeMillis")
+    ability_casts: tuple[AbilityCasts] | None = msgspec.field(name="abilityCasts")
+
+
+class RoundDamage(msgspec.Struct):
+    round: int = msgspec.field(name="round")
+    receiver_id: str = msgspec.field(name="receiver")
+    amount: int = msgspec.field(name="damage")
+
+
+class Player(msgspec.Struct):
+    player_id: str = msgspec.field(name="subject")
+    name: str = msgspec.field(name="gameName")
+    tagline: str = msgspec.field(name="tagLine")
+    team: Literal["Blue", "Red"] = msgspec.field(name="teamId")
+    party_id: str = msgspec.field(name="partyId")
+    character_id: str = msgspec.field(name="characterId")
+    stats: PlayerStats = msgspec.field(name="stats")
+
+
+class Match(msgspec.Struct):
+    history: MatchInfo = msgspec.field(name="matchInfo")
+    players: list[Player] = msgspec.field(name="matchInfo")
+    coaches: list[Coach] = msgspec.field(name="matchInfo")
+    teams: list[Team] | None = msgspec.field(name="matchInfo")
+    rounds: list[Round] | None = msgspec.field(name="matchInfo")
+    kills: list[Kill] = msgspec.field(name="matchInfo")

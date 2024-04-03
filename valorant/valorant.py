@@ -8,7 +8,9 @@ import json
 import msgspec.json
 import requests
 
-from valorant import Auth, Version, User, AccountXP, Loadout, URLS, API, Region, regions
+from valorant.classes import Version, User, AccountXP, Loadout
+from valorant.constants import URLS, API, Region, regions
+from valorant.auth import Auth
 
 
 class Valorant:
@@ -51,13 +53,11 @@ class Valorant:
 
     @property
     def client_version(self) -> Version:
-        """
-        Get the latest client version
-        :return: str
-        """
-        return requests.get("https://valorant-api.com/v1/version", timeout=30).json()[
-            "data"
-        ]
+        version = requests.get(
+            "https://valorant-api.com/v1/version", timeout=30
+        ).json()["data"]
+
+        return Version(**version)
 
     def get_user(self) -> User:
         user_info = self.session.post(
@@ -86,7 +86,7 @@ class Valorant:
             f"{self.pd_server}{API.CONTENT}",
             headers={
                 "X-Riot-ClientPlatform": f"{self.client_platform}",
-                "X-Riot-ClientVersion": f"{self.client_version.riot_client_version}",
+                "X-Riot-ClientVersion": f"{self.client_version.riotClientVersion}",
                 "X-Riot-Entitlements-JWT": f"{self.auth.get_entitlement_token()}",
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
@@ -130,7 +130,7 @@ class Valorant:
             f"{self.pd_server}{API.MMR}/{player_id}",
             headers={
                 "X-Riot-ClientPlatform": self.client_platform,
-                "X-Riot-ClientVersion": self.client_version.riot_client_version,
+                "X-Riot-ClientVersion": self.client_version.riotClientVersion,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
@@ -178,7 +178,7 @@ class Valorant:
                 else ""
             ),
             headers={
-                "X-Riot-ClientVersion": self.client_version.riot_client_version,
+                "X-Riot-ClientVersion": self.client_version.riotClientVersion,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
@@ -219,7 +219,7 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "X-Riot-ClientPlatform": self.client_platform,
-                "X-Riot-ClientVersion": self.client_version.riot_client_version,
+                "X-Riot-ClientVersion": self.client_version.riotClientVersion,
                 "Content-Type": "application/json",
             },
         ).json()
@@ -367,7 +367,7 @@ class Valorant:
         return self.session.get(
             f"{self.pd_server}{API.CONTRACTS}/{player_id}",
             headers={
-                "X-Riot-ClientVersion": self.client_version.riot_client_version,
+                "X-Riot-ClientVersion": self.client_version.riotClientVersion,
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
