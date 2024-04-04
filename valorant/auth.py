@@ -1,6 +1,6 @@
 import os
 
-import requests
+import httpx
 
 from valorant.constants import URLS
 
@@ -20,8 +20,8 @@ class LockFile:
 
 
 class Auth:
-    def __init__(self, session: requests.Session, username: str, password: str) -> None:
-        self.session = session
+    def __init__(self, client: httpx.AsyncClient, username: str, password: str) -> None:
+        self.client = client
 
         self.username = username
         self.password = password
@@ -31,8 +31,8 @@ class Auth:
         self.__entitlement_token = None
         self.__pas_token = None
 
-    def set_auth_cookies(self) -> None:
-        self.session.post(
+    async def set_auth_cookies(self) -> None:
+        await self.client.post(
             url=URLS.AUTH_URL,
             json={
                 "acr_values": "urn:riot:bronze",
@@ -45,18 +45,22 @@ class Auth:
             },
         )
 
-    def get_access_token(self) -> str:
+    async def get_access_token(self) -> str:
         if self.__access_token is not None:
             return self.__access_token
 
-        put_data = {
-            "language": "en_US",
-            "password": self.password,
-            "remember": "true",
-            "type": "auth",
-            "username": self.username,
-        }
-        request = self.session.put(url=URLS.AUTH_URL, json=put_data).json()
+        request = (
+            await self.client.put(
+                url=URLS.AUTH_URL,
+                json={
+                    "language": "en_US",
+                    "password": self.password,
+                    "remember": "true",
+                    "type": "auth",
+                    "username": self.username,
+                },
+            )
+        ).json()
 
         if request["type"] == "multifactor":
             raise ValueError("Multifactor needed, please disable it and try again")
@@ -74,34 +78,38 @@ class Auth:
         )
         return self.__access_token
 
-    def get_id_token(self) -> str:
+    async def get_id_token(self) -> str:
         if self.__id_token is not None:
             return self.__id_token
 
-        self.__access_token, self.__id_token = self.get_access_token()
+        self.__access_token, self.__id_token = await self.get_access_token()
         return self.__id_token
 
-    def get_entitlement_token(self) -> str:
+    async def get_entitlement_token(self) -> str:
         if self.__entitlement_token is not None:
             return self.__entitlement_token
 
-        self.__entitlement_token = self.session.post(
-            URLS.ENTITLEMENT_URL,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.get_access_token()}",
-            },
-            json={},
+        self.__entitlement_token = (
+            await self.client.post(
+                URLS.ENTITLEMENT_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {await self.get_access_token()}",
+                },
+                json={},
+            )
         ).json()["entitlements_token"]
 
         return self.__entitlement_token
 
-    def get_pas_token(self) -> str:
+    async def get_pas_token(self) -> str:
         if self.__pas_token is not None:
             return self.__pas_token
 
-        self.__pas_token = self.session.get(
-            "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
-            headers={"Authorization": f"Bearer {self.get_access_token()}"},
+        self.__pas_token = (
+            await self.client.get(
+                "https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat",
+                headers={"Authorization": f"Bearer {await self.get_access_token()}"},
+            )
         ).text
         return self.__pas_token

@@ -5,6 +5,7 @@ Classes and methods related to Valorant API calls
 import base64
 import json
 
+import httpx
 import msgspec.json
 import requests
 
@@ -24,13 +25,13 @@ from valorant.structs.user import User
 
 class Valorant:
     def __init__(self, username: str, password: str) -> None:
-        self.session = requests.Session()
-        self.auth = Auth(self.session, username, password)
+        self.client = httpx.AsyncClient()
+        self.auth = Auth(self.client, username, password)
 
         build = requests.get("https://valorant-api.com/v1/version").json()["data"][
             "riotClientBuild"
         ]
-        self.session.headers.update(
+        self.client.headers.update(
             {
                 "User-Agent": f"RiotClient/{build} riot-status (Windows;10;;Professional, x64)",
                 "Accept-Language": "en-US,en;q=0.9",
@@ -38,14 +39,19 @@ class Valorant:
             }
         )
 
-        self.auth.set_auth_cookies()
+        self.__region = None
+        self.__user = None
 
-        self.region = self.get_region()
-        self.pd_server = f"https://pd.{self.region.region}.a.pvp.net"
-        self.glz_server = (
-            f"https://glz-{self.region.region}-1.{self.region.shard}.a.pvp.net"
-        )
-        self.user_info = self.get_user()
+    async def start(self) -> None:
+        await self.auth.set_auth_cookies()
+
+    async def get_pd_server(self) -> str:
+        region = await self.get_region()
+        return f"https://pd.{region.region}.a.pvp.net"
+
+    async def get_glz_server(self) -> str:
+        region = await self.get_region()
+        return f"https://glz-{region.region}-1.{region.shard}.a.pvp.net"
 
     @property
     def client_platform(self) -> bytes:
@@ -68,84 +74,96 @@ class Valorant:
 
         return Version(**version)
 
-    def get_user(self) -> User:
-        user_info = self.session.post(
+    async def get_user(self) -> User:
+        if self.__user is not None:
+            return self.__user
+        user_info = await self.client.post(
             URLS.USERINFO_URL,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
             json={},
-        ).content
-        return msgspec.json.decode(user_info, type=User)
+        )
+        user = msgspec.json.decode(user_info.content, type=User)
+        self.__user = user
+        return user
 
-    def get_region(self) -> Region:
-        a = self.session.put(
+    async def get_region(self) -> Region:
+        if self.__region is not None:
+            return self.__region
+
+        region = await self.client.put(
             "https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant",
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-            json={"id_token": self.auth.get_id_token()},
-        ).json()
-        return regions[a["affinities"]["live"]]
+            json={"id_token": await self.auth.get_id_token()},
+        )
+        region = regions[region.json()["affinities"]["live"]]
+        self.__region = region
+        return region
 
-    def get_content(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.CONTENT}",
+    async def get_content(self) -> dict:
+        content = await self.client.get(
+            f"{await self.get_pd_server()}{API.CONTENT}",
             headers={
                 "X-Riot-ClientPlatform": f"{self.client_platform}",
                 "X-Riot-ClientVersion": f"{self.client_version.riotClientVersion}",
-                "X-Riot-Entitlements-JWT": f"{self.auth.get_entitlement_token()}",
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": f"{await self.auth.get_entitlement_token()}",
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return content.json()
 
-    def get_account_xp(self) -> AccountXP:
-        account_xp = self.session.get(
-            f"{self.pd_server}{API.ACCOUNT_XP}/{self.user_info.player_id}",
+    async def get_account_xp(self) -> AccountXP:
+        account_xp = await self.client.get(
+            f"{await self.get_pd_server()}{API.ACCOUNT_XP}/{(await self.get_user()).player_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).content
-        return msgspec.json.decode(account_xp, type=AccountXP)
+        )
 
-    def get_loadout(self) -> Loadout:
-        loadout = self.session.get(
-            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info.player_id}/playerloadout",
+        return msgspec.json.decode(account_xp.content, type=AccountXP)
+
+    async def get_loadout(self) -> Loadout:
+        loadout = await self.client.get(
+            f"{await self.get_pd_server()}{API.PERSONALIZATION}/{(await self.get_user()).player_id}/playerloadout",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).content
-        return msgspec.json.decode(loadout, type=Loadout)
+        )
+        return msgspec.json.decode(loadout.content, type=Loadout)
 
-    def set_loadout(self, loadout: Loadout) -> None:
-        self.session.put(
-            f"{self.pd_server}{API.PERSONALIZATION}/{self.user_info.player_id}/playerloadout",
+    async def set_loadout(self, loadout: Loadout) -> None:
+        await self.client.put(
+            f"{await self.get_pd_server()}{API.PERSONALIZATION}/{(await self.get_user()).player_id}/playerloadout",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
             json=msgspec.json.encode(loadout),
         )
 
-    def get_player_mmr(self, player_id: str | None = None) -> dict:
+    async def get_player_mmr(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info.player_id
+            player_id = (await self.get_user()).player_id
 
-        return self.session.get(
-            f"{self.pd_server}{API.MMR}/{player_id}",
+        player_mmr = await self.client.get(
+            f"{await self.get_pd_server()}{API.MMR}/{player_id}",
             headers={
                 "X-Riot-ClientPlatform": self.client_platform,
                 "X-Riot-ClientVersion": self.client_version.riotClientVersion,
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return player_mmr.json()
 
-    def get_match_history(
+    async def get_match_history(
         self,
         player_id: str | None = None,
         offset: int | None = 0,
@@ -153,236 +171,262 @@ class Valorant:
     ) -> list[HistoryMatch]:
         # TODO: add queue parameter when ids are known
         if player_id is None:
-            player_id = self.user_info.player_id
+            player_id = (await self.get_user()).player_id
 
-        history = self.session.get(
-            f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={offset}&endIndex={amount}",
+        history = await self.client.get(
+            f"{await self.get_pd_server()}{API.HISTORY}/{player_id}?startIndex={offset}&endIndex={amount}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).content
-        print(history)
+        )
         # TODO make this return a list of MatchHistory
-        return msgspec.json.decode(history, type=HistoryMatchResponse).History
+        return msgspec.json.decode(history.content, type=HistoryMatchResponse).History
 
-    def get_match_details(self, match_id: str) -> MatchDetails:
-        match = self.session.get(
-            f"{self.pd_server}{API.MATCHES}/{match_id}",
+    async def get_match_details(self, match_id: str) -> MatchDetails:
+        match = await self.client.get(
+            f"{await self.get_pd_server()}{API.MATCHES}/{match_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).content
-        return msgspec.json.decode(match, type=MatchDetails)
+        )
+        return msgspec.json.decode(match.content, type=MatchDetails)
 
-    def get_leaderboard(
+    async def get_leaderboard(
         self,
         season_id: str,
         start: int = 0,
         amount: int = 510,
         username: str | None = None,
     ) -> LeaderBoard:
-        leaderboard = self.session.get(
+        leaderboard = await self.client.get(
             (
-                f"{self.pd_server}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}"
+                f"{await self.get_pd_server()}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}"
                 + f"&query={username}"
                 if username
                 else ""
             ),
             headers={
                 "X-Riot-ClientVersion": self.client_version.riotClientVersion,
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).content
-        return msgspec.json.decode(leaderboard, type=LeaderBoard)
+        )
+        return msgspec.json.decode(leaderboard.content, type=LeaderBoard)
 
-    def get_penalties(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.PENALTIES}",
+    async def get_penalties(self) -> dict:
+        penalties = await self.client.get(
+            f"{await self.get_pd_server()}{API.PENALTIES}",
             headers={
                 "X-Riot-ClientPlatform": self.client_platform,
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return penalties.json()
 
-    def get_config(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.CONFIG}/{self.region.region}",
+    async def get_config(self) -> dict:
+        region = await self.get_region()
+        config = await self.client.get(
+            f"{await self.get_pd_server()}{API.CONFIG}/{region.region}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return config.json()
 
-    def get_prices(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.PRICES}",
+    async def get_prices(self) -> dict:
+        prices = await self.client.get(
+            f"{await self.get_pd_server()}{API.PRICES}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
 
-    def get_store(self) -> dict:
-        return requests.get(
-            f"{self.pd_server}{API.STORE}/{self.user_info.player_id}",
+        return prices.json()
+
+    async def get_store(self) -> dict:
+        store = await self.client.get(
+            f"{await self.get_pd_server()}{API.STORE}/{(await self.get_user()).player_id}",
             headers={
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
                 "X-Riot-ClientPlatform": self.client_platform,
                 "X-Riot-ClientVersion": self.client_version.riotClientVersion,
                 "Content-Type": "application/json",
             },
-        ).json()
+        )
 
-    def get_wallet(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.WALLET}/{self.user_info.player_id}",
+        return store.json()
+
+    async def get_wallet(self) -> dict:
+        wallet = await self.client.get(
+            f"{await self.get_pd_server()}{API.WALLET}/{(await self.get_user()).player_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return wallet.json()
 
-    def get_items(self, item_type: str) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.OWNED}/{self.user_info.player_id}/{item_type}",
+    async def get_items(self, item_type: str) -> dict:
+        items = await self.client.get(
+            f"{await self.get_pd_server()}{API.OWNED}/{(await self.get_user()).player_id}/{item_type}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return items.json()
 
-    def get_pregame_id(self, player_id: str | None = None) -> dict:
+    async def get_pregame_id(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info.player_id
+            player_id = (await self.get_user()).player_id
 
-        return self.session.get(
-            f"{self.glz_server}{API.PREGAME_PLAYER}/{player_id}",
+        pregame = await self.client.get(
+            f"{await self.get_glz_server()}{API.PREGAME_PLAYER}/{player_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
 
-    def get_pregame_match(self, pregame_match_id: str | None = None) -> dict:
+        return pregame.json()
+
+    async def get_pregame_match(self, pregame_match_id: str | None = None) -> dict:
         if pregame_match_id is None:
-            pregame_match_id = self.get_pregame_id()["MatchID"]
+            pregame_match_id = (await self.get_pregame_id())["MatchID"]
 
-        return self.session.get(
-            f"{self.glz_server}{API.PREGAME_MATCH}/{pregame_match_id}",
+        pregame_match = await self.client.get(
+            f"{await self.get_glz_server()}{API.PREGAME_MATCH}/{pregame_match_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return pregame_match.json()
 
-    def get_pregame_loadout(self, pregame_match_id: str | None = None) -> dict:
+    async def get_pregame_loadout(self, pregame_match_id: str | None = None) -> dict:
         if pregame_match_id is None:
-            pregame_match_id = self.get_pregame_id()["MatchID"]
+            pregame_match_id = (await self.get_pregame_id())["MatchID"]
 
-        return self.session.get(
-            f"{self.glz_server}{API.PREGAME_MATCH}/{pregame_match_id}/loadouts",
+        pregame_loadout = await self.client.get(
+            f"{await self.get_glz_server()}{API.PREGAME_MATCH}/{pregame_match_id}/loadouts",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return pregame_loadout.json()
 
-    def select_agent(self, agent_id: str, pregame_match_id: str | None = None) -> dict:
-        if pregame_match_id is None:
-            pregame_match_id = self.get_pregame_id()
-
-        return self.session.post(
-            f"{self.glz_server}{API.MATCHES}/{pregame_match_id}/select/{agent_id}",
-            headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
-            },
-        ).json()
-
-    def lock_agent(self, agent_id: str, pregame_match_id: str | None = None) -> dict:
+    async def select_agent(
+        self, agent_id: str, pregame_match_id: str | None = None
+    ) -> dict:
         if pregame_match_id is None:
             pregame_match_id = self.get_pregame_id()
 
-        return self.session.post(
-            f"{self.glz_server}{API.MATCHES}/{pregame_match_id}/lock/{agent_id}",
+        agent_select = await self.client.post(
+            f"{await self.get_glz_server()}{API.MATCHES}/{pregame_match_id}/select/{agent_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return agent_select.json()
 
-    def quit_pregame(self, pregame_match_id: str | None = None) -> dict:
+    async def lock_agent(
+        self, agent_id: str, pregame_match_id: str | None = None
+    ) -> dict:
         if pregame_match_id is None:
             pregame_match_id = self.get_pregame_id()
 
-        return self.session.post(
-            f"{self.glz_server}{API.MATCHES}/{pregame_match_id}/quit",
+        agent_lock = await self.client.post(
+            f"{await self.get_glz_server()}{API.MATCHES}/{pregame_match_id}/lock/{agent_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return agent_lock.json()
 
-    def get_current_game_player(self, player_id: str | None = None) -> dict:
+    async def quit_pregame(self, pregame_match_id: str | None = None) -> dict:
+        if pregame_match_id is None:
+            pregame_match_id = self.get_pregame_id()
+
+        pregame_quit = await self.client.post(
+            f"{await self.get_glz_server()}{API.MATCHES}/{pregame_match_id}/quit",
+            headers={
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
+            },
+        )
+        return pregame_quit.json()
+
+    async def get_current_game_player(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info.player_id
+            player_id = (await self.get_user()).player_id
 
-        print(f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}")
-        return self.session.get(
-            f"{self.glz_server}{API.CURRENT_GAME_PLAYER}/{player_id}",
+        current_game_player = await self.client.get(
+            f"{await self.get_glz_server()}{API.CURRENT_GAME_PLAYER}/{player_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return current_game_player.links
 
-    def get_current_game_match(self, current_match_id: str | None = None) -> dict:
+    async def get_current_game_match(self, current_match_id: str | None = None) -> dict:
         if current_match_id is None:
-            current_match_id = self.get_pregame_id()["MatchID"]
+            current_match_id = (await self.get_pregame_id())["MatchID"]
 
-        return self.session.get(
-            f"{self.glz_server}{API.CURRENT_GAME_MATCH}/{current_match_id}",
+        current_game_match = await self.client.get(
+            f"{await self.get_glz_server()}{API.CURRENT_GAME_MATCH}/{current_match_id}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return current_game_match.json()
 
-    def get_current_game_loadout(self, current_match_id: str | None = None) -> dict:
+    async def get_current_game_loadout(
+        self, current_match_id: str | None = None
+    ) -> dict:
         if current_match_id is None:
-            current_match_id = self.get_pregame_id()["MatchID"]
+            current_match_id = (await self.get_pregame_id())["MatchID"]
 
-        return self.session.get(
-            f"{self.glz_server}{API.CURRENT_GAME_MATCH}/{current_match_id}/loadouts",
+        current_game_loadout = await self.client.get(
+            f"{await self.get_glz_server()}{API.CURRENT_GAME_MATCH}/{current_match_id}/loadouts",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return current_game_loadout.json()
 
-    def get_item_upgrades(self) -> dict:
-        return self.session.get(
-            f"{self.pd_server}{API.ITEM_UPGRADES}",
+    async def get_item_upgrades(self) -> dict:
+        item_upgrades = await self.client.get(
+            f"{await self.get_pd_server()}{API.ITEM_UPGRADES}",
             headers={
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
 
-    def get_contracts(self, player_id: str | None = None) -> dict:
+        return item_upgrades.json()
+
+    async def get_contracts(self, player_id: str | None = None) -> dict:
         if player_id is None:
-            player_id = self.user_info.player_id
+            player_id = (await self.get_user()).player_id
 
-        return self.session.get(
-            f"{self.pd_server}{API.CONTRACTS}/{player_id}",
+        contracts = await self.client.get(
+            f"{await self.get_pd_server()}{API.CONTRACTS}/{player_id}",
             headers={
                 "X-Riot-ClientVersion": self.client_version.riotClientVersion,
-                "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
-                "Authorization": f"Bearer {self.auth.get_access_token()}",
+                "X-Riot-Entitlements-JWT": await self.auth.get_entitlement_token(),
+                "Authorization": f"Bearer {await self.auth.get_access_token()}",
             },
-        ).json()
+        )
+        return contracts.json()
