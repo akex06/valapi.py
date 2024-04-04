@@ -1,6 +1,5 @@
 import msgspec
-
-from valorant import Account
+from valorant.structs.account import Account
 
 
 class Password(msgspec.Struct):

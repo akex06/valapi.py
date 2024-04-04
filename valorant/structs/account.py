@@ -1,3 +1,5 @@
+from typing import Literal
+
 import msgspec
 
 
@@ -15,6 +17,11 @@ class Account(
     name: str
     tagline: str
     created_at: int
+
+
+class XPSource(msgspec.Struct, rename={"id": "ID", "amount": "Amount"}):
+    id: Literal["time-played", "match-win", "first-win-of-the-day"]
+    amount: int
 
 
 class AccountXPMatch(

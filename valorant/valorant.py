@@ -8,9 +8,18 @@ import json
 import msgspec.json
 import requests
 
-from valorant.structs.structs import Version, User, AccountXP, Loadout, Match
-from valorant.constants import URLS, API, Region, regions
 from valorant.auth import Auth
+from valorant.constants import URLS, API, Region, regions
+from valorant.structs.account import AccountXP
+from valorant.structs.leaderboard import LeaderBoard
+from valorant.structs.loadout import Loadout
+from valorant.structs.match import (
+    MatchDetails,
+    HistoryMatch,
+    HistoryMatchResponse,
+)
+from valorant.structs.structs import Version
+from valorant.structs.user import User
 
 
 class Valorant:
@@ -141,20 +150,23 @@ class Valorant:
         player_id: str | None = None,
         offset: int | None = 0,
         amount: int | None = 20,
-    ) -> dict:
+    ) -> list[HistoryMatch]:
         # TODO: add queue parameter when ids are known
         if player_id is None:
             player_id = self.user_info.player_id
 
-        return self.session.get(
+        history = self.session.get(
             f"{self.pd_server}{API.HISTORY}/{player_id}?startIndex={offset}&endIndex={amount}",
             headers={
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
-        ).json()
+        ).content
+        print(history)
+        # TODO make this return a list of MatchHistory
+        return msgspec.json.decode(history, type=HistoryMatchResponse).History
 
-    def get_match_details(self, match_id: str) -> Match:
+    def get_match_details(self, match_id: str) -> MatchDetails:
         match = self.session.get(
             f"{self.pd_server}{API.MATCHES}/{match_id}",
             headers={
@@ -162,7 +174,7 @@ class Valorant:
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
         ).content
-        return msgspec.json.decode(match, type=Match)
+        return msgspec.json.decode(match, type=MatchDetails)
 
     def get_leaderboard(
         self,
@@ -170,8 +182,8 @@ class Valorant:
         start: int = 0,
         amount: int = 510,
         username: str | None = None,
-    ) -> dict:
-        return self.session.get(
+    ) -> LeaderBoard:
+        leaderboard = self.session.get(
             (
                 f"{self.pd_server}{API.LEADERBOARD}/{season_id}?startIndex={start}&size={amount}"
                 + f"&query={username}"
@@ -183,7 +195,8 @@ class Valorant:
                 "X-Riot-Entitlements-JWT": self.auth.get_entitlement_token(),
                 "Authorization": f"Bearer {self.auth.get_access_token()}",
             },
-        ).json()
+        ).content
+        return msgspec.json.decode(leaderboard, type=LeaderBoard)
 
     def get_penalties(self) -> dict:
         return self.session.get(

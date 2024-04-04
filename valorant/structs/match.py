@@ -2,11 +2,6 @@ from typing import Literal
 import msgspec
 
 
-class XPSource(msgspec.Struct, rename={"id": "ID", "amount": "Amount"}):
-    id: Literal["time-played", "match-win", "first-win-of-the-day"]
-    amount: int
-
-
 class MatchInfo(
     msgspec.Struct,
     rename={
@@ -120,7 +115,7 @@ class Behavior(
     rounds_in_spawn: int
 
 
-class Player(
+class GamePlayer(
     msgspec.Struct,
     rename={
         "player_id": "subject",
@@ -348,13 +343,31 @@ class Round(
     bomb_planter_id: str | None = None
 
 
-class Match(
+class MatchDetails(
     msgspec.Struct,
     rename={"info": "matchInfo", "rounds": "roundResults"},
 ):
     info: MatchInfo
-    players: list[Player]
+    players: list[GamePlayer]
     coaches: list[Coach]
     kills: list[Kill]
     teams: list[Team] | None = None
     rounds: list[Round] | None = None
+
+
+class HistoryMatch(
+    msgspec.Struct,
+    rename={"match_id": "MatchID", "date": "GameStartTime", "queue": "QueueID"},
+):
+    match_id: str
+    # TODO change to datetime, millis since epoch
+    date: int
+    queue: str
+
+
+class HistoryMatchResponse(msgspec.Struct):
+    Subject: str
+    BeginIndex: int
+    EndIndex: int
+    Total: int
+    History: list[HistoryMatch]

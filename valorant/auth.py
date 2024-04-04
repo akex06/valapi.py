@@ -1,6 +1,22 @@
+import os
+
 import requests
 
 from valorant.constants import URLS
+
+
+class LockFile:
+    def __init__(self, lockfile_path: str = None) -> None:
+        if lockfile_path is None:
+            lockfile_path = (
+                os.getenv("LOCALAPPDATA")
+                + "\\Riot Games\\Riot Client\\Config\\lockfile"
+            )
+
+        with open(lockfile_path, encoding="utf-8") as f:
+            self.name, self.pid, self.port, self.password, self.protocol = (
+                f.read().split(":")
+            )
 
 
 class Auth:

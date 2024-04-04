@@ -13,7 +13,7 @@ class Ability(
     slot: str
     name: str
     description: str
-    icon: str
+    icon: str | None
 
 
 class Role(
@@ -48,11 +48,16 @@ class Agent(
     name: str
     description: str
     developer_name: str
-    display_icon: str
+    display_icon: str | None
     portrait: str
     kill_portrait: str
     background: str
     colors: list[str]
-    role: list[Role]
+    role: Role
     abilities: list[Ability]
-    tags: list[str] | None = None
+    tags: list[str] | None
+
+
+class AgentResponse(msgspec.Struct):
+    status: int
+    data: list[Agent]
