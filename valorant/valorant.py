@@ -11,16 +11,18 @@ import requests
 
 from valorant.auth import Auth
 from valorant.constants import URLS, API, Region, regions
-from valorant.structs.account import AccountXP
-from valorant.structs.leaderboard import LeaderBoard
-from valorant.structs.loadout import Loadout
-from valorant.structs.match import (
+
+from valorant.structs import (
+    Auth,
+    AccountXP,
+    LeaderBoard,
+    Loadout,
     MatchDetails,
     HistoryMatch,
     HistoryMatchResponse,
+    Version,
+    User
 )
-from valorant.structs.structs import Version
-from valorant.structs.user import User
 
 
 class Valorant:

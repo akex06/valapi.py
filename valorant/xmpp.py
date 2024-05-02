@@ -189,7 +189,7 @@ class XMPP(abc.ABC):
                 for root in xml_element:
                     processor = self.processors.get(root.tag)
                     if processor is None:
-                        print("Processor not implemented for" + root.tag)
+                        print(f"Processor not implemented for{root.tag}")
                         continue
 
                     await self.processors[root.tag](root)
