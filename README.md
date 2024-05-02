@@ -1,9 +1,19 @@
-# ValAPI.py
+<h1 align="center"><b>ValAPI.py</b></h1>
 
-ValAPI.py is a Valorant API wrapper and XMPP client.
+<h4 align="center">ValAPI.py is a Valorant API wrapper and XMPP client.</p>
 
 
-## Examples
+<h2 align="center">💡Getting Started </h2>
+
+To use this library, you have install it via `pip`
+
+```bash
+pip install ValAPI.py
+```
+
+
+<h2 align="center">📜 Examples </h2>
+
 ### Getting your player ID
 ```py
 from valorant import Valorant
@@ -49,3 +59,7 @@ async def main():
     
 asyncio.run(main())
 ```
+
+<h2 align="center">🤝 Contributing </h2>
+
+Contributions are all welcome. Feel free to submit your suggestions via pull requests. Your contributions are needed in order for package to improve!
